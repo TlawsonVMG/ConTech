@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Customers{% endblock %}
+{% block kicker %}CRM records{% endblock %}
+{% block page_title %}Customers{% endblock %}
+{% block page_description %}Manage customer profiles and open a Customer 360 workspace for notes, reminders, pipeline, operations, and billing context.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button accent" href="{{ url_for('crm.customers_create') }}">New customer</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <input class="toolbar-input" type="search" name="q" placeholder="Search customer, contact, or address" value="{{ query }}" />
+      <button class="action-button" type="submit">Search</button>
+      {% if query %}
+        <a class="action-button" href="{{ url_for('crm.customers_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card top-gap">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Segment</th>
+            <th>Status</th>
+            <th>Trade mix</th>
+            <th>Linked records</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for customer in customers %}
+            <tr>
+              <td>
+                <div class="row-title">{{ customer.name }}</div>
+                <div class="row-subtitle">{{ customer.primary_contact }}{% if customer.phone %} / {{ customer.phone }}{% endif %}</div>
+                <div class="row-subtitle">{{ customer.service_address }}</div>
+              </td>
+              <td>{{ customer.segment }}</td>
+              <td>{{ customer.status }}</td>
+              <td>{{ customer.trade_mix }}</td>
+              <td>{{ customer.lead_count }} leads / {{ customer.opportunity_count }} opps / {{ customer.open_task_count }} open tasks</td>
+              <td>
+                <div class="table-actions">
+                  <a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=customer.id) }}">Open 360</a>
+                  <a class="mini-link" href="{{ url_for('crm.customers_edit', customer_id=customer.id) }}">Edit</a>
+                  <a class="mini-link" href="{{ url_for('crm.leads_create', customer_id=customer.id) }}">Add lead</a>
+                  <form method="post" action="{{ url_for('crm.customers_delete', customer_id=customer.id) }}" onsubmit="return confirm('Delete this customer?');">
+                    <button class="mini-link danger-link" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No customers matched your search.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

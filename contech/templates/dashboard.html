@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Dashboard{% endblock %}
+{% block kicker %}Daily control center{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_description %}Live branch view for pipeline, follow-up workload, and the connected sales-to-operations workflow.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.workboard') }}">Open work board</a>
+  {% if current_user and current_user['role_name'] in ('admin', 'sales') %}
+    <a class="action-button" href="{{ url_for('crm.customers_create') }}">New customer</a>
+    <a class="action-button" href="{{ url_for('crm.quotes_create') }}">New quote</a>
+    <a class="action-button accent" href="{{ url_for('crm.invoices_create') }}">New invoice</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="overview-strip">
+    {% for metric in overview_metrics %}
+      <article class="metric-card">
+        <div>
+          <div class="metric-label">{{ metric.label }}</div>
+          <div class="metric-value">{{ metric.value }}</div>
+        </div>
+        <span class="metric-trend">{{ metric.trend }}</span>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="view-grid">
+    <article class="card hero-card span-8">
+      <p class="module-tag">Current build milestone</p>
+      <h3 class="hero-title">ConTech now covers Customer 360, follow-up work, communications, operations, and billing in one flow.</h3>
+      <p class="hero-subtitle">
+        Customer records now hold notes, reminders, email logs, calendar events, pipeline activity, production status, and billing context.
+        That gives ConTech a real operating desk view instead of a disconnected list of modules.
+      </p>
+      <div class="hero-sequence">
+        <span class="sequence-pill">Auth + roles</span>
+        <span class="sequence-pill">Customer 360</span>
+        <span class="sequence-pill">Customer CRUD</span>
+        <span class="sequence-pill">Lead CRUD</span>
+        <span class="sequence-pill">Opportunity CRUD</span>
+        <span class="sequence-pill">Quote -> Job -> Invoice</span>
+        <span class="sequence-pill">Inventory + Dispatch</span>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Workspace counts</h3>
+          <p class="panel-copy">The first operational records available in the app.</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Customers</span>
+          <strong>{{ role_snapshot.customers }}</strong>
+          <div class="row-subtitle">Residential + commercial</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Leads</span>
+          <strong>{{ role_snapshot.leads }}</strong>
+          <div class="row-subtitle">Intake and qualification</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Opportunities</span>
+          <strong>{{ role_snapshot.opportunities }}</strong>
+          <div class="row-subtitle">Active sales work</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Quotes</span>
+          <strong>{{ role_snapshot.quotes }}</strong>
+          <div class="row-subtitle">Pricing packages and approvals</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Jobs</span>
+          <strong>{{ role_snapshot.jobs }}</strong>
+          <div class="row-subtitle">Production handoff records</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Invoices</span>
+          <strong>{{ role_snapshot.invoices }}</strong>
+          <div class="row-subtitle">Billing and payment tracking</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Deliveries</span>
+          <strong>{{ role_snapshot.deliveries }}</strong>
+          <div class="row-subtitle">Dispatch board records</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Inventory items</span>
+          <strong>{{ role_snapshot.inventory_items }}</strong>
+          <div class="row-subtitle">Live stocked materials</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Reservations</span>
+          <strong>{{ role_snapshot.materials }}</strong>
+          <div class="row-subtitle">Job-linked material lines</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Active users</span>
+          <strong>{{ role_snapshot.users }}</strong>
+          <div class="row-subtitle">Role-based access</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Hot pipeline</h3>
+          <p class="panel-copy">Seeded opportunities from the branch snapshot.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Opportunity</th>
+              <th>Stage</th>
+              <th>Close</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in dashboard.hotPipeline %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ item.name }}</div>
+                  <div class="row-subtitle">{{ item.subtitle }}</div>
+                </td>
+                <td>{{ item.stage }}</td>
+                <td>{{ item.close }}</td>
+                <td>{{ item.value }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Quick links</h3>
+          <p class="panel-copy">Jump directly into the first real workflows.</p>
+        </div>
+      </div>
+      <div class="schedule-stack">
+        {% if current_user and current_user['role_name'] in ('admin', 'sales') %}
+          <a class="schedule-card block-link" href="{{ url_for('crm.customers_index') }}">
+            <div class="row-title">Customers</div>
+            <div class="row-subtitle">Create, edit, and open Customer 360 workspaces with notes, reminders, email, and calendar context.</div>
+          </a>
+          <a class="schedule-card block-link" href="{{ url_for('crm.leads_index') }}">
+            <div class="row-title">Leads</div>
+            <div class="row-subtitle">Track lead source, rep assignment, estimated value, and stage.</div>
+          </a>
+          <a class="schedule-card block-link" href="{{ url_for('crm.opportunities_index') }}">
+            <div class="row-title">Opportunities</div>
+            <div class="row-subtitle">Convert sales work into deal records with close dates and priority.</div>
+          </a>
+          <a class="schedule-card block-link" href="{{ url_for('crm.quotes_index') }}">
+            <div class="row-title">Quotes</div>
+            <div class="row-subtitle">Issue pricing options from opportunities and move them toward approval.</div>
+          </a>
+        {% endif %}
+        {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch', 'inventory', 'accounting') %}
+          <a class="schedule-card block-link" href="{{ url_for('crm.jobs_index') }}">
+            <div class="row-title">Jobs</div>
+            <div class="row-subtitle">Create production records and push them into material and dispatch workflow.</div>
+          </a>
+        {% endif %}
+        {% if current_user %}
+        <a class="schedule-card block-link" href="{{ url_for('crm.inventory_index') }}">
+          <div class="row-title">Inventory</div>
+          <div class="row-subtitle">Track stock, reserved quantities, shortages, and purchase follow-up.</div>
+        </a>
+        <a class="schedule-card block-link" href="{{ url_for('crm.dispatch_index') }}">
+          <div class="row-title">Dispatch</div>
+          <div class="row-subtitle">Schedule trucks, routes, and ETA windows from reserved jobs.</div>
+        </a>
+        {% endif %}
+        {% if current_user and current_user['role_name'] in ('admin', 'sales', 'accounting') %}
+          <a class="schedule-card block-link" href="{{ url_for('crm.invoices_index') }}">
+            <div class="row-title">Invoices</div>
+            <div class="row-subtitle">Bill work from jobs and record payment progress against balances.</div>
+          </a>
+        {% endif %}
+        <a class="schedule-card block-link" href="{{ url_for('crm.workboard') }}">
+          <div class="row-title">Work Board</div>
+          <div class="row-subtitle">Run daily tasks, install prep, collections watch, and purchasing pressure from one page.</div>
+        </a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

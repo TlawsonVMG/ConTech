@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Feedback Inbox{% endblock %}
+{% block kicker %}Pilot feedback{% endblock %}
+{% block page_title %}Feedback Inbox{% endblock %}
+{% block page_description %}Review public pilot comments, track status, and collect the rough edges customers notice first.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('feedback.public_feedback') }}" target="_blank" rel="noreferrer">Open public form</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status|replace('_', ' ')|title }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_status %}
+        <a class="action-button" href="{{ url_for('feedback.feedback_inbox') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-8">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Feedback</th>
+              <th>Rating</th>
+              <th>Status</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for submission in submissions %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ submission.summary }}</div>
+                  <div class="row-subtitle">{{ submission.submitter_name }} / {{ submission.submitter_email }}</div>
+                  <div class="row-subtitle">{{ submission.company_name or 'No company provided' }}{% if submission.role_label %} / {{ submission.role_label }}{% endif %}</div>
+                  <div class="row-subtitle">{{ submission.page_url or 'No page captured' }}</div>
+                  <div class="row-subtitle top-gap">{{ submission.details }}</div>
+                </td>
+                <td>{{ submission.rating or 'N/A' }}</td>
+                <td>
+                  <span class="status-pill {% if submission.status == 'new' %}warning{% elif submission.status == 'closed' %}success{% else %}default{% endif %}">{{ submission.status|replace('_', ' ') }}</span>
+                  <div class="row-subtitle top-gap">{{ submission.submitted_at }}</div>
+                </td>
+                <td>
+                  <form class="form-grid" method="post" action="{{ url_for('feedback.feedback_update_status', submission_id=submission.id) }}">
+                    {{ csrf_input() }}
+                    <label class="form-field">
+                      <span>Status</span>
+                      <select name="status">
+                        {% for status in status_options %}
+                          <option value="{{ status }}" {% if submission.status == status %}selected{% endif %}>{{ status|replace('_', ' ')|title }}</option>
+                        {% endfor %}
+                      </select>
+                    </label>
+                    <label class="form-field">
+                      <span>Internal notes</span>
+                      <textarea name="internal_notes" rows="3">{{ submission.internal_notes or '' }}</textarea>
+                    </label>
+                    <div class="row-subtitle">{{ submission.reviewed_by or 'Not reviewed yet' }}{% if submission.reviewed_at %} / {{ submission.reviewed_at }}{% endif %}</div>
+                    <div class="form-actions">
+                      <button class="action-button" type="submit">Save</button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4">No pilot feedback has been submitted yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Inbox summary</h3>
+          <p class="panel-copy">High-level view of what is still waiting on review.</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">New</span>
+          <strong>{{ summary.new }}</strong>
+          <div class="row-subtitle">Fresh customer notes</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">In review</span>
+          <strong>{{ summary.in_review }}</strong>
+          <div class="row-subtitle">Triaged and being worked</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Closed</span>
+          <strong>{{ summary.closed }}</strong>
+          <div class="row-subtitle">Resolved or acknowledged</div>
+        </div>
+      </div>
+    </article>
+  </section>
+{% endblock %}

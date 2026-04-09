@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Edit Field Record{% endblock %}
+{% block kicker %}Field execution{% endblock %}
+{% block page_title %}Edit Field Record{% endblock %}
+{% block page_description %}Update job-packet metadata and manage the locally stored file attached to this execution record.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.jobs_execution', job_id=job.id) }}">Back to execution</a>
+  <a class="action-button" href="{{ url_for('crm.customers_detail', customer_id=job.customer_id) }}">Customer 360</a>
+{% endblock %}
+
+{% block content %}
+  <section class="view-grid">
+    <article class="card span-7">
+      <form class="form-grid" method="post" enctype="multipart/form-data">
+        <div class="customer-grid">
+          <label class="form-field">
+            <span>Record type</span>
+            <select name="record_type">
+              {% for record_type in document_types %}
+                <option value="{{ record_type }}" {% if document.record_type == record_type %}selected{% endif %}>{{ record_type }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Status</span>
+            <select name="status">
+              {% for status in document_statuses %}
+                <option value="{{ status }}" {% if document.status == status %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Captured at</span>
+            <input type="datetime-local" name="captured_at" value="{{ document.captured_at|replace(' ', 'T') }}" required />
+          </label>
+          <label class="form-field">
+            <span>Owner</span>
+            <select name="owner_name">
+              {% for owner in owners %}
+                <option value="{{ owner.full_name }}" {% if document.owner_name == owner.full_name %}selected{% endif %}>{{ owner.full_name }} / {{ owner.role_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label class="form-field">
+          <span>Title</span>
+          <input type="text" name="title" value="{{ document.title }}" required />
+        </label>
+        <label class="form-field">
+          <span>File reference</span>
+          <input type="text" name="file_reference" value="{{ document.file_reference or '' }}" placeholder="photos/job-123/front-elevation.jpg" />
+        </label>
+        <label class="form-field">
+          <span>Replace upload</span>
+          <input type="file" name="upload_file" />
+        </label>
+        <label class="form-field">
+          <span>Notes</span>
+          <textarea name="notes" rows="4" required>{{ document.notes }}</textarea>
+        </label>
+        <label class="form-field checkbox-field span-full">
+          <input type="checkbox" name="replace_existing_file" />
+          <span>Remove the currently stored upload if you are clearing it out.</span>
+        </label>
+        <div class="form-actions">
+          <button class="action-button accent" type="submit">Save field record</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Stored file</h3>
+          <p class="panel-copy">Manual references and uploaded files can coexist on the same field record.</p>
+        </div>
+      </div>
+      <div class="schedule-stack">
+        <div class="schedule-card">
+          <div class="row-title">Manual reference</div>
+          <div class="row-subtitle">{{ document.file_reference or 'No manual file reference saved' }}</div>
+        </div>
+        <div class="schedule-card">
+          <div class="row-title">Uploaded file</div>
+          {% if document.stored_file_name %}
+            <div class="row-subtitle">{{ document.original_filename or document.stored_file_name }}</div>
+            <div class="top-gap">
+              <a class="mini-link" href="{{ url_for('crm.job_documents_file', document_id=document.id) }}">Download stored file</a>
+            </div>
+          {% else %}
+            <div class="row-subtitle">No local upload is attached to this record yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+  </section>
+{% endblock %}

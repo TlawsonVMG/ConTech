@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Job Materials{% endblock %}
+{% block kicker %}Operations workflow{% endblock %}
+{% block page_title %}Job Materials{% endblock %}
+{% block page_description %}Reserve inventory for the job, surface shortages, and hand the record forward to dispatch scheduling.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.jobs_index') }}">Back to jobs</a>
+  <a class="action-button" href="{{ url_for('crm.jobs_execution', job_id=job.id) }}">Execution</a>
+  <a class="action-button" href="{{ url_for('crm.purchasing_index') }}">Purchasing queue</a>
+  {% if current_user and current_user['role_name'] in ('admin', 'dispatch') %}
+    <a class="action-button accent" href="{{ url_for('crm.dispatch_create', job_id=job.id) }}">Schedule delivery</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="view-grid">
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">{{ job.name }}</h3>
+          <p class="panel-copy">{{ job.scope }}</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Customer</span>
+          <strong>{{ job.customer_name }}</strong>
+          <div class="row-subtitle">Linked production account</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Status</span>
+          <strong>{{ job.status }}</strong>
+          <div class="row-subtitle">Job workflow state</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Start</span>
+          <strong>{{ job.scheduled_start or 'Not scheduled' }}</strong>
+          <div class="row-subtitle">Crew {{ job.crew_name or 'Unassigned' }}</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Quote</span>
+          <strong>{{ job.quote_number or 'No quote' }}</strong>
+          <div class="row-subtitle">Sales record linkage</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Reservation summary</h3>
+          <p class="panel-copy">Totals update as material lines are added or removed from the job.</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Lines</span>
+          <strong>{{ summary.line_count }}</strong>
+          <div class="row-subtitle">Reserved items</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Requested</span>
+          <strong>{{ summary.requested_qty|round(2) }}</strong>
+          <div class="row-subtitle">Total quantity requested</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Reserved</span>
+          <strong>{{ summary.reserved_qty|round(2) }}</strong>
+          <div class="row-subtitle">Committed branch stock</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Shortage</span>
+          <strong>{{ summary.shortage_qty|round(2) }}</strong>
+          <div class="row-subtitle">Still needs sourcing</div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-8">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Requested</th>
+              <th>Reserved</th>
+              <th>Shortage</th>
+              <th>Status</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for material in materials %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ material.item_name }}</div>
+                  <div class="row-subtitle">{{ material.sku }} / {{ material.category }}</div>
+                  <div class="row-subtitle">{{ material.vendor_name or 'No vendor linked' }}</div>
+                </td>
+                <td>{{ material.requested_qty|round(2) }}</td>
+                <td>{{ material.reserved_qty|round(2) }}</td>
+                <td>{{ material.shortage_qty|round(2) }}</td>
+                <td>
+                  <span class="status-pill {% if material.shortage_qty > 0 %}warning{% else %}success{% endif %}">{{ material.status }}</span>
+                </td>
+                <td>{{ material.notes }}</td>
+                <td>
+                  <div class="table-actions">
+                    {% if current_user and current_user['role_name'] in ('admin', 'dispatch', 'inventory') %}
+                      <form method="post" action="{{ url_for('crm.job_materials_delete', material_id=material.id) }}" onsubmit="return confirm('Remove this reserved material line?');">
+                        <button class="mini-link danger-link" type="submit">Delete</button>
+                      </form>
+                    {% else %}
+                      <span class="row-subtitle">View only</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7">No material has been reserved for this job yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Reserve material</h3>
+          <p class="panel-copy">Select stock and let ConTech calculate what can be reserved immediately.</p>
+        </div>
+      </div>
+      {% if current_user and current_user['role_name'] in ('admin', 'dispatch', 'inventory') %}
+        <form class="form-grid" method="post" action="{{ url_for('crm.job_materials_create', job_id=job.id) }}">
+          <label class="form-field">
+            <span>Inventory item</span>
+            <select name="inventory_item_id" required>
+              <option value="">Select inventory</option>
+              {% for item in inventory_items %}
+                <option value="{{ item.id }}">{{ item.item_name }} / {{ item.sku }} / available {{ (item.stock_on_hand - item.reserved_qty)|round(2) }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Requested quantity</span>
+            <input type="number" name="requested_qty" min="0.01" step="0.01" required />
+          </label>
+
+          <label class="form-field">
+            <span>Purchase priority</span>
+            <select name="purchase_priority">
+              {% for priority in purchase_priorities %}
+                <option value="{{ priority }}">{{ priority|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Notes</span>
+            <textarea name="notes" rows="4"></textarea>
+          </label>
+
+          <label class="form-field checkbox-field span-full">
+            <input type="checkbox" name="auto_purchase" checked />
+            <span>Auto-create a purchase request if the branch does not have enough stock.</span>
+          </label>
+
+          <div class="form-actions">
+            <button class="action-button accent" type="submit">Reserve material</button>
+          </div>
+        </form>
+      {% else %}
+        <div class="row-subtitle">Your role can review job reservations here, but only dispatch, inventory, or admin users can add material.</div>
+      {% endif %}
+    </article>
+  </section>
+
+  {% if purchase_requests %}
+    <section class="card top-gap">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Shortage follow-up</h3>
+          <p class="panel-copy">Purchase requests already raised for this job's shortages.</p>
+        </div>
+      </div>
+      <div class="schedule-stack">
+        {% for request in purchase_requests %}
+          <div class="schedule-card">
+            <div class="row-title">{{ request.title }}</div>
+            <div class="row-subtitle">{{ request.vendor_name or 'Unassigned vendor' }}</div>
+            <div class="row-subtitle">{{ request.details }}</div>
+            <div class="row-subtitle">Owner {{ request.owner_name }} / Need by {{ request.needed_by or 'Not set' }}</div>
+            <div class="row-subtitle">Req {{ request.requested_qty if request.requested_qty is not none else 0 }} / Ord {{ request.ordered_qty|round(2) }} / Rec {{ request.received_qty|round(2) }}</div>
+            <div class="row-subtitle">ETA {{ request.eta_date or 'Pending' }}</div>
+            <div class="row-subtitle">{{ request.vendor_notes }}</div>
+            <div class="chips top-gap">
+              <span class="status-pill {% if request.priority == 'high' %}danger{% elif request.priority == 'medium' %}warning{% else %}success{% endif %}">{{ request.priority|capitalize }}</span>
+              <span class="status-pill">{{ request.status }}</span>
+            </div>
+            <div class="top-gap">
+              <a class="mini-link" href="{{ url_for('crm.purchasing_edit', request_id=request.id) }}">Open purchasing record</a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}ConTech{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <link rel="stylesheet" href="{{ url_for('web.styles') }}" />
+  </head>
+  <body class="crm-body">
+    <div class="backdrop"></div>
+    <div class="crm-shell">
+      <aside class="crm-sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">Roofing + Siding CRM</p>
+          <div class="brand-lockup">
+            <div class="brand-mark">CT</div>
+            <div>
+              <h1>ConTech</h1>
+              <p>Single-branch CRM foundation with sales, ops, and finance visibility.</p>
+            </div>
+          </div>
+        </div>
+
+        <nav class="sidebar-section">
+          <p class="sidebar-label">Navigation</p>
+          <div class="nav-list">
+            <a class="nav-button {% if request.endpoint == 'crm.dashboard' %}active{% endif %}" href="{{ url_for('crm.dashboard') }}">
+              <span class="nav-icon">DB</span>
+              <span>
+                <span class="nav-title">Dashboard</span>
+                <span class="nav-copy">Control center</span>
+              </span>
+            </a>
+            <a class="nav-button {% if request.endpoint == 'crm.workboard' %}active{% endif %}" href="{{ url_for('crm.workboard') }}">
+              <span class="nav-icon">WB</span>
+              <span>
+                <span class="nav-title">Work Board</span>
+                <span class="nav-copy">Daily action queue</span>
+              </span>
+            </a>
+
+            {% if current_user and current_user['role_name'] in ('admin', 'sales') %}
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.customers') %}active{% endif %}" href="{{ url_for('crm.customers_index') }}">
+                <span class="nav-icon">CU</span>
+                <span>
+                  <span class="nav-title">Customers</span>
+                  <span class="nav-copy">Profiles and records</span>
+                </span>
+              </a>
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.leads') %}active{% endif %}" href="{{ url_for('crm.leads_index') }}">
+                <span class="nav-icon">LD</span>
+                <span>
+                  <span class="nav-title">Leads</span>
+                  <span class="nav-copy">Pipeline intake</span>
+                </span>
+              </a>
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.opportunities') %}active{% endif %}" href="{{ url_for('crm.opportunities_index') }}">
+                <span class="nav-icon">OP</span>
+                <span>
+                  <span class="nav-title">Opportunities</span>
+                  <span class="nav-copy">Quoted work</span>
+                </span>
+              </a>
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.quotes') %}active{% endif %}" href="{{ url_for('crm.quotes_index') }}">
+                <span class="nav-icon">QT</span>
+                <span>
+                  <span class="nav-title">Quotes</span>
+                  <span class="nav-copy">Pricing and approvals</span>
+                </span>
+              </a>
+            {% endif %}
+
+            {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch', 'inventory') %}
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.jobs') %}active{% endif %}" href="{{ url_for('crm.jobs_index') }}">
+                <span class="nav-icon">JB</span>
+                <span>
+                  <span class="nav-title">Jobs</span>
+                  <span class="nav-copy">Production handoff</span>
+                </span>
+              </a>
+            {% endif %}
+
+            {% if current_user %}
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.inventory') %}active{% endif %}" href="{{ url_for('crm.inventory_index') }}">
+                <span class="nav-icon">IN</span>
+                <span>
+                  <span class="nav-title">Inventory</span>
+                  <span class="nav-copy">Stock and reservations</span>
+                </span>
+              </a>
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.dispatch') %}active{% endif %}" href="{{ url_for('crm.dispatch_index') }}">
+                <span class="nav-icon">DP</span>
+                <span>
+                  <span class="nav-title">Dispatch</span>
+                  <span class="nav-copy">Routes and deliveries</span>
+                </span>
+              </a>
+            {% endif %}
+
+            {% if current_user and current_user['role_name'] in ('admin', 'sales', 'accounting') %}
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.invoices') %}active{% endif %}" href="{{ url_for('crm.invoices_index') }}">
+                <span class="nav-icon">IV</span>
+                <span>
+                  <span class="nav-title">Invoices</span>
+                  <span class="nav-copy">Billing and payments</span>
+                </span>
+              </a>
+            {% endif %}
+
+            {% if current_user %}
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('feedback.') %}active{% endif %}" href="{{ url_for('feedback.feedback_inbox') }}">
+                <span class="nav-icon">FB</span>
+                <span>
+                  <span class="nav-title">Feedback</span>
+                  <span class="nav-copy">Pilot inbox</span>
+                </span>
+              </a>
+            {% endif %}
+
+            <a class="nav-button" href="{{ url_for('web.prototype') }}">
+              <span class="nav-icon">UI</span>
+              <span>
+                <span class="nav-title">Prototype</span>
+                <span class="nav-copy">Design reference</span>
+              </span>
+            </a>
+          </div>
+        </nav>
+
+        {% if current_user %}
+          <div class="sidebar-section stack">
+            <div class="sidebar-card">
+              <p class="sidebar-label">Signed in</p>
+              <div class="row-title">{{ current_user['full_name'] }}</div>
+              <div class="row-subtitle">{{ current_user['username'] }}</div>
+              <div class="chips top-gap">
+                <span class="status-pill">{{ current_user['role_name']|capitalize }}</span>
+              </div>
+              <form class="top-gap" method="post" action="{{ url_for('auth.logout') }}">
+                <button class="action-button wide-button" type="submit">Sign out</button>
+              </form>
+            </div>
+          </div>
+        {% endif %}
+      </aside>
+
+      <main class="crm-main">
+        <header class="crm-header">
+          <div>
+            <p class="eyebrow">{% block kicker %}ConTech Workspace{% endblock %}</p>
+            <h2 class="crm-title">{% block page_title %}Dashboard{% endblock %}</h2>
+            <p class="view-description">{% block page_description %}{% endblock %}</p>
+          </div>
+          <div class="crm-header-actions">
+            {% block page_actions %}{% endblock %}
+          </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      (function () {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (!token) return;
+        document.querySelectorAll('form').forEach((form) => {
+          const method = (form.getAttribute('method') || 'get').toLowerCase();
+          if (method !== 'post' || form.querySelector('input[name="csrf_token"]')) return;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          input.value = token;
+          form.prepend(input);
+        });
+      })();
+    </script>
+  </body>
+</html>

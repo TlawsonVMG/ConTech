@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Job{% else %}Edit Job{% endif %}{% endblock %}
+{% block kicker %}Production workflow{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Job{% else %}Edit Job{% endif %}{% endblock %}
+{% block page_description %}Move approved work into a production-ready job record with schedule and crew context.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.jobs_index') }}">Back to jobs</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Opportunity</span>
+      <select name="opportunity_id">
+        <option value="">No linked opportunity</option>
+        {% for opportunity in opportunities %}
+          <option value="{{ opportunity.id }}" {% if job.opportunity_id|string == opportunity.id|string %}selected{% endif %}>{{ opportunity.name }} / {{ opportunity.subtitle }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Quote</span>
+      <select name="quote_id">
+        <option value="">No linked quote</option>
+        {% for quote in quotes %}
+          <option value="{{ quote.id }}" {% if job.quote_id|string == quote.id|string %}selected{% endif %}>{{ quote.quote_number }} / {{ quote.customer_name }} / {{ quote.option_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Customer</span>
+      <select name="customer_id">
+        <option value="">Select customer</option>
+        {% for customer in customers %}
+          <option value="{{ customer.id }}" {% if job.customer_id|string == customer.id|string %}selected{% endif %}>{{ customer.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Status</span>
+      <select name="status">
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if job.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Job name</span>
+      <input type="text" name="name" value="{{ job.name }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Scheduled start</span>
+      <input type="date" name="scheduled_start" value="{{ job.scheduled_start or '' }}" />
+    </label>
+
+    <label class="form-field span-full">
+      <span>Scope</span>
+      <input type="text" name="scope" value="{{ job.scope }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Crew name</span>
+      <input type="text" name="crew_name" value="{{ job.crew_name or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Committed revenue</span>
+      <input type="number" name="committed_revenue" min="0" step="0.01" value="{{ job.committed_revenue if job.committed_revenue is not none else '' }}" required />
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create job{% else %}Save job{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

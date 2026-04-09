@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Inventory Item{% else %}Edit Inventory Item{% endif %}{% endblock %}
+{% block kicker %}Operations workflow{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Inventory Item{% else %}Edit Inventory Item{% endif %}{% endblock %}
+{% block page_description %}Maintain pricing, stock levels, and supplier linkage for the branch inventory catalog.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.inventory_index') }}">Back to inventory</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Vendor</span>
+      <select name="vendor_id">
+        <option value="">No vendor linked</option>
+        {% for vendor in vendors %}
+          <option value="{{ vendor.id }}" {% if item.vendor_id|string == vendor.id|string %}selected{% endif %}>{{ vendor.name }} / {{ vendor.category }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Category</span>
+      <select name="category">
+        {% for category in categories %}
+          <option value="{{ category }}" {% if item.category == category %}selected{% endif %}>{{ category }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>SKU</span>
+      <input type="text" name="sku" value="{{ item.sku }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Item name</span>
+      <input type="text" name="item_name" value="{{ item.item_name }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Stock on hand</span>
+      <input type="number" name="stock_on_hand" min="0" step="0.01" value="{{ item.stock_on_hand if item.stock_on_hand is not none else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Status</span>
+      <select name="status">
+        {% for status in statuses %}
+          <option value="{{ status }}" {% if item.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Unit cost</span>
+      <input type="number" name="unit_cost" min="0" step="0.01" value="{{ item.unit_cost if item.unit_cost is not none else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Unit price</span>
+      <input type="number" name="unit_price" min="0" step="0.01" value="{{ item.unit_price if item.unit_price is not none else '' }}" required />
+    </label>
+
+    <div class="span-full row-subtitle">
+      Reserved quantity currently tied to jobs: {{ current_reserved_qty|round(2) }}. ConTech manages that number from job material reservations.
+    </div>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create item{% else %}Save item{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

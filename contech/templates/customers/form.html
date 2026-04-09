@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Customer{% else %}Edit Customer{% endif %}{% endblock %}
+{% block kicker %}CRM records{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Customer{% else %}Edit Customer{% endif %}{% endblock %}
+{% block page_description %}Capture the customer information the rest of ConTech will rely on.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.customers_index') }}">Back to customers</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Customer name</span>
+      <input type="text" name="name" value="{{ customer.name }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Segment</span>
+      <select name="segment">
+        {% for segment in segments %}
+          <option value="{{ segment }}" {% if customer.segment == segment %}selected{% endif %}>{{ segment }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Primary contact</span>
+      <input type="text" name="primary_contact" value="{{ customer.primary_contact }}" />
+    </label>
+
+    <div class="form-field">
+      <span>Additional contacts</span>
+      <div class="row-subtitle">Add accounts payable, property manager, superintendent, and other contacts from Customer 360 after the account is saved.</div>
+    </div>
+
+    <label class="form-field">
+      <span>Phone</span>
+      <input type="text" name="phone" value="{{ customer.phone }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Email</span>
+      <input type="email" name="email" value="{{ customer.email }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Status</span>
+      <select name="status">
+        {% for status in statuses %}
+          <option value="{{ status }}" {% if customer.status == status %}selected{% endif %}>{{ status|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field span-full">
+      <span>Service address</span>
+      <input type="text" name="service_address" value="{{ customer.service_address }}" required />
+    </label>
+
+    <label class="form-field span-full">
+      <span>Trade mix</span>
+      <input type="text" name="trade_mix" value="{{ customer.trade_mix }}" placeholder="Roofing, siding, gutters" />
+    </label>
+
+    <label class="form-field checkbox-field span-full">
+      <input type="checkbox" name="is_repeat" {% if customer.is_repeat %}checked{% endif %} />
+      <span>Repeat customer</span>
+    </label>
+
+    <label class="form-field span-full">
+      <span>Notes</span>
+      <textarea name="notes" rows="5">{{ customer.notes }}</textarea>
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create customer{% else %}Save customer{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Edit Change Order{% endblock %}
+{% block kicker %}Field execution{% endblock %}
+{% block page_title %}Edit Change Order{% endblock %}
+{% block page_description %}Revise field scope, preserve revision history, and keep billing readiness tied to the live job record.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.jobs_execution', job_id=job.id) }}">Back to execution</a>
+  <a class="action-button" href="{{ url_for('crm.customers_detail', customer_id=job.customer_id) }}">Customer 360</a>
+{% endblock %}
+
+{% block content %}
+  <section class="view-grid">
+    <article class="card span-7">
+      <form class="form-grid" method="post">
+        <div class="customer-grid">
+          <label class="form-field">
+            <span>Change number</span>
+            <input type="text" name="change_number" value="{{ change_order.change_number }}" required />
+          </label>
+          <label class="form-field">
+            <span>Status</span>
+            <select name="status">
+              {% for status in change_order_statuses %}
+                <option value="{{ status }}" {% if change_order.status == status %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Requested date</span>
+            <input type="date" name="requested_date" value="{{ change_order.requested_date }}" required />
+          </label>
+          <label class="form-field">
+            <span>Approved date</span>
+            <input type="date" name="approved_date" value="{{ change_order.approved_date or '' }}" />
+          </label>
+          <label class="form-field">
+            <span>Amount</span>
+            <input type="number" name="amount" min="0" step="0.01" value="{{ change_order.amount }}" required />
+          </label>
+          <label class="form-field">
+            <span>Cost impact</span>
+            <input type="number" name="cost_impact" min="0" step="0.01" value="{{ change_order.cost_impact }}" required />
+          </label>
+          <label class="form-field">
+            <span>Schedule impact (days)</span>
+            <input type="number" name="schedule_days" min="0" step="1" value="{{ change_order.schedule_days }}" required />
+          </label>
+          <label class="form-field">
+            <span>Owner</span>
+            <select name="owner_name">
+              {% for owner in owners %}
+                <option value="{{ owner.full_name }}" {% if change_order.owner_name == owner.full_name %}selected{% endif %}>{{ owner.full_name }} / {{ owner.role_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label class="form-field">
+          <span>Title</span>
+          <input type="text" name="title" value="{{ change_order.title }}" required />
+        </label>
+        <label class="form-field">
+          <span>Description</span>
+          <textarea name="description" rows="4" required>{{ change_order.description }}</textarea>
+        </label>
+        <label class="form-field">
+          <span>Field notes</span>
+          <textarea name="notes" rows="4" required>{{ change_order.notes }}</textarea>
+        </label>
+        <label class="form-field">
+          <span>Revision summary</span>
+          <input type="text" name="change_summary" value="{{ change_summary }}" placeholder="Example: Board approved added insulation scope" />
+        </label>
+        <label class="form-field checkbox-field span-full">
+          <input type="checkbox" name="is_billable" {% if change_order.is_billable %}checked{% endif %} />
+          <span>This change order should be available for billing.</span>
+        </label>
+        <div class="form-actions">
+          <button class="action-button accent" type="submit">Save change order</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Revision history</h3>
+          <p class="panel-copy">Every save writes a snapshot so field and billing decisions stay traceable.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>When</th>
+              <th>Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for version in version_history %}
+              <tr>
+                <td>
+                  <div class="row-title">v{{ version.version_number }}</div>
+                  <div class="row-subtitle">{{ version.changed_by }}</div>
+                </td>
+                <td>
+                  <div class="row-subtitle">{{ version.changed_at }}</div>
+                  <div class="row-subtitle">{{ version.snapshot.status }} / {{ version.snapshot.amount|currency }}</div>
+                </td>
+                <td>
+                  <div class="row-subtitle">{{ version.change_summary or 'No summary recorded' }}</div>
+                  <div class="row-subtitle">{{ version.snapshot.title }}</div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="3">No revision history exists for this change order yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

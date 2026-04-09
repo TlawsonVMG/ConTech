@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Dispatch{% endblock %}
+{% block kicker %}Operations workflow{% endblock %}
+{% block page_title %}Dispatch{% endblock %}
+{% block page_description %}Schedule delivery runs, track ETA windows, and keep jobs moving after material reservation.{% endblock %}
+
+{% block page_actions %}
+  {% if current_user and current_user['role_name'] in ('admin', 'dispatch') %}
+    <a class="action-button accent" href="{{ url_for('crm.dispatch_create') }}">New delivery</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_status %}
+        <a class="action-button" href="{{ url_for('crm.dispatch_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-8">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>ETA</th>
+              <th>Route</th>
+              <th>Load</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for delivery in deliveries %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ delivery.job_name or 'No linked job' }}</div>
+                  <div class="row-subtitle">{{ delivery.customer_name or 'No customer linked' }}</div>
+                  <div class="row-subtitle">{{ delivery.material_count }} material lines</div>
+                </td>
+                <td>{{ delivery.eta }}</td>
+                <td>
+                  <div class="row-title">{{ delivery.route_name }}</div>
+                  <div class="row-subtitle">{{ delivery.truck_name }}</div>
+                </td>
+                <td>{{ delivery.load_percent }}%</td>
+                <td>
+                  <span class="status-pill {% if delivery.status == 'Delivered' %}success{% elif delivery.status in ('Delayed', 'Cancelled') %}danger{% else %}warning{% endif %}">{{ delivery.status }}</span>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    {% if delivery.customer_id %}
+                      <a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=delivery.customer_id) }}">Customer 360</a>
+                    {% endif %}
+                    {% if current_user and current_user['role_name'] in ('admin', 'dispatch') %}
+                      <a class="mini-link" href="{{ url_for('crm.dispatch_edit', delivery_id=delivery.id) }}">Edit</a>
+                      <form method="post" action="{{ url_for('crm.dispatch_delete', delivery_id=delivery.id) }}" onsubmit="return confirm('Delete this delivery?');">
+                        <button class="mini-link danger-link" type="submit">Delete</button>
+                      </form>
+                    {% else %}
+                      <span class="row-subtitle">View only</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="6">No deliveries found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Ready to route</h3>
+          <p class="panel-copy">Jobs that already have reserved material and are candidates for a delivery run.</p>
+        </div>
+      </div>
+      <div class="schedule-stack">
+        {% for job in ready_jobs %}
+          <div class="schedule-card">
+            <div class="row-title">{{ job.name }}</div>
+            <div class="row-subtitle">{{ job.customer_name }}</div>
+            <div class="row-subtitle">Reserved {{ job.reserved_qty|round(2) }} / Start {{ job.scheduled_start or 'TBD' }}</div>
+            {% if current_user and current_user['role_name'] in ('admin', 'dispatch') %}
+              <div class="top-gap">
+                <a class="mini-link" href="{{ url_for('crm.dispatch_create', job_id=job.id) }}">Schedule delivery</a>
+              </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="row-subtitle">No reserved jobs are waiting on dispatch right now.</div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+{% endblock %}

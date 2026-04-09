@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Opportunity{% else %}Edit Opportunity{% endif %}{% endblock %}
+{% block kicker %}Sales pipeline{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Opportunity{% else %}Edit Opportunity{% endif %}{% endblock %}
+{% block page_description %}Turn qualified work into deal records with a close target, value, and priority.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.opportunities_index') }}">Back to opportunities</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Origin lead</span>
+      <select name="lead_id">
+        <option value="">No linked lead</option>
+        {% for lead in leads %}
+          <option value="{{ lead.id }}" {% if opportunity.lead_id|string == lead.id|string %}selected{% endif %}>
+            #{{ lead.id }} - {{ lead.trade_interest }} / {{ lead.assigned_rep }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Customer</span>
+      <select name="customer_id">
+        <option value="">Unlinked customer</option>
+        {% for customer in customers %}
+          <option value="{{ customer.id }}" {% if opportunity.customer_id|string == customer.id|string %}selected{% endif %}>{{ customer.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Name</span>
+      <input type="text" name="name" value="{{ opportunity.name }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Stage</span>
+      <select name="stage">
+        {% for stage in stage_options %}
+          <option value="{{ stage }}" {% if opportunity.stage == stage %}selected{% endif %}>{{ stage }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field span-full">
+      <span>Subtitle / scope</span>
+      <input type="text" name="subtitle" value="{{ opportunity.subtitle }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Close date</span>
+      <input type="date" name="close_date" value="{{ opportunity.close_date or '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Value</span>
+      <input type="number" name="value" min="0" step="0.01" value="{{ opportunity.value if opportunity.value is not none else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Priority (0-100)</span>
+      <input type="number" name="priority" min="0" max="100" value="{{ opportunity.priority if opportunity.priority is not none else 60 }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Rep</span>
+      <select name="rep">
+        <option value="">Select rep</option>
+        {% for user in sales_reps %}
+          <option value="{{ user.rep_value }}" {% if opportunity.rep == user.rep_value %}selected{% endif %}>{{ user.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field span-full">
+      <span>Trade mix</span>
+      <input type="text" name="trade_mix" value="{{ opportunity.trade_mix }}" placeholder="Roofing, siding, gutters" required />
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create opportunity{% else %}Save opportunity{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Invoices{% endblock %}
+{% block kicker %}Billing workflow{% endblock %}
+{% block page_title %}Invoices{% endblock %}
+{% block page_description %}Track issued billing, open balances, and payment completion against jobs and customers.{% endblock %}
+
+{% block page_actions %}
+  {% if current_user and current_user['role_name'] in ('admin', 'sales', 'accounting') %}
+    <a class="action-button accent" href="{{ url_for('crm.invoices_create') }}">New invoice</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_status %}
+        <a class="action-button" href="{{ url_for('crm.invoices_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card top-gap">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Status</th>
+            <th>Amount</th>
+            <th>Remaining</th>
+            <th>Due</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for invoice in invoices %}
+            <tr>
+              <td>
+                <div class="row-title">{{ invoice.invoice_number }}</div>
+                <div class="row-subtitle">{{ invoice.customer_name }}</div>
+                <div class="row-subtitle">{{ invoice.job_name or 'No linked job' }}</div>
+                <div class="row-subtitle">{{ invoice.quote_number or 'No linked quote' }}</div>
+                <div class="row-subtitle">{{ invoice.billing_type }}{% if invoice.application_number %} / {{ invoice.application_number }}{% endif %}</div>
+                {% if invoice.change_number %}
+                  <div class="row-subtitle">{{ invoice.change_number }} / {{ invoice.change_order_title }}</div>
+                {% endif %}
+              </td>
+              <td>{{ invoice.status }}</td>
+              <td>
+                <div class="row-title">{{ invoice.amount|currency }}</div>
+                <div class="row-subtitle">Retainage held {{ invoice.retainage_held|currency }}</div>
+              </td>
+              <td>{{ invoice.remaining_balance|currency }}</td>
+              <td>
+                <div class="row-subtitle">Issued: {{ invoice.issued_date or 'Not set' }}</div>
+                <div class="row-subtitle">Due: {{ invoice.due_date }}</div>
+                <div class="row-subtitle">
+                  {% if invoice.billing_period_start or invoice.billing_period_end %}
+                    Period: {{ invoice.billing_period_start or 'Open' }} to {{ invoice.billing_period_end or 'Open' }}
+                  {% else %}
+                    Period: Not set
+                  {% endif %}
+                </div>
+                <div class="row-subtitle">{{ invoice.aging_bucket }}</div>
+                <div class="row-subtitle">{{ invoice.payment_count }} payments{% if invoice.last_payment_date %} / last {{ invoice.last_payment_date }}{% endif %}</div>
+              </td>
+              <td>
+                <div class="table-actions">
+                  <a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=invoice.customer_id) }}">Customer 360</a>
+                  {% if current_user and current_user['role_name'] in ('admin', 'sales', 'accounting') %}
+                    <a class="mini-link" href="{{ url_for('crm.invoices_edit', invoice_id=invoice.id) }}">Edit</a>
+                    <a class="mini-link" href="{{ url_for('crm.invoices_payment', invoice_id=invoice.id) }}">Record payment</a>
+                    <form method="post" action="{{ url_for('crm.invoices_delete', invoice_id=invoice.id) }}" onsubmit="return confirm('Delete this invoice?');">
+                      <button class="mini-link danger-link" type="submit">Delete</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No invoices found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

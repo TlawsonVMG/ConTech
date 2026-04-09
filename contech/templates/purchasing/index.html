@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Purchasing{% endblock %}
+{% block kicker %}Supplier workflow{% endblock %}
+{% block page_title %}Purchasing Queue{% endblock %}
+{% block page_description %}Track shortage follow-up, vendor responses, owner accountability, and needed-by dates for supplier coordination.{% endblock %}
+
+{% block page_actions %}
+  {% if current_user and current_user['role_name'] in ('admin', 'dispatch', 'inventory', 'accounting') %}
+    <a class="action-button accent" href="{{ url_for('crm.purchasing_create') }}">New request</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_status %}
+        <a class="action-button" href="{{ url_for('crm.purchasing_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-8">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Request</th>
+              <th>Vendor</th>
+              <th>Linked work</th>
+              <th>Owner</th>
+              <th>Need by</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for request in purchase_requests %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ request.title }}</div>
+                  <div class="row-subtitle">{{ request.details }}</div>
+                  <div class="row-subtitle">{{ request.vendor_notes }}</div>
+                </td>
+                <td>{{ request.vendor_name or 'No vendor linked' }}</td>
+                <td>
+                  <div class="row-subtitle">{{ request.customer_name or 'No customer linked' }}</div>
+                  <div class="row-subtitle">{{ request.job_name or 'No job linked' }}</div>
+                  <div class="row-subtitle">{{ request.item_name or 'No item linked' }}{% if request.sku %} / {{ request.sku }}{% endif %}</div>
+                  <div class="row-subtitle">Req {{ request.requested_qty if request.requested_qty is not none else 0 }} / Ord {{ request.ordered_qty|round(2) }} / Rec {{ request.received_qty|round(2) }}</div>
+                </td>
+                <td>{{ request.owner_name }}</td>
+                <td>
+                  <div class="row-subtitle">{{ request.needed_by or 'Not set' }}</div>
+                  <div class="row-subtitle">ETA {{ request.eta_date or 'Pending' }}</div>
+                </td>
+                <td>
+                  <span class="status-pill {% if request.status in ('Open', 'Quoted') %}warning{% elif request.status in ('Cancelled') %}danger{% else %}success{% endif %}">{{ request.status }}</span>
+                  <div class="row-subtitle top-gap">{{ request.priority|capitalize }}</div>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    {% if request.customer_id %}
+                      <a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=request.customer_id) }}">Customer 360</a>
+                    {% endif %}
+                    {% if current_user and current_user['role_name'] in ('admin', 'dispatch', 'inventory', 'accounting') %}
+                      <a class="mini-link" href="{{ url_for('crm.purchasing_edit', request_id=request.id) }}">Edit</a>
+                      <form method="post" action="{{ url_for('crm.purchasing_delete', request_id=request.id) }}" onsubmit="return confirm('Delete this purchase request?');">
+                        <button class="mini-link danger-link" type="submit">Delete</button>
+                      </form>
+                    {% else %}
+                      <span class="row-subtitle">View only</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7">No purchase requests match the current filter.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Queue summary</h3>
+          <p class="panel-copy">High-level supplier pressure across the branch.</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Open</span>
+          <strong>{{ summary.open }}</strong>
+          <div class="row-subtitle">Active supplier follow-up</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">High priority</span>
+          <strong>{{ summary.high_priority }}</strong>
+          <div class="row-subtitle">Needs quick movement</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Need-by set</span>
+          <strong>{{ summary.due_soon }}</strong>
+          <div class="row-subtitle">Timed fulfillment records</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Vendors</span>
+          <strong>{{ summary.vendors }}</strong>
+          <div class="row-subtitle">Supplier accounts in play</div>
+        </div>
+      </div>
+    </article>
+  </section>
+{% endblock %}

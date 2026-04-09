@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Delivery{% else %}Edit Delivery{% endif %}{% endblock %}
+{% block kicker %}Operations workflow{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Delivery{% else %}Edit Delivery{% endif %}{% endblock %}
+{% block page_description %}Assign a job to a truck route and control how dispatch moves material into the field.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.dispatch_index') }}">Back to dispatch</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Job</span>
+      <select name="job_id" required>
+        <option value="">Select job</option>
+        {% for job in jobs %}
+          <option value="{{ job.id }}" {% if delivery.job_id|string == job.id|string %}selected{% endif %}>{{ job.name }} / {{ job.customer_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Status</span>
+      <select name="status">
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if delivery.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Route name</span>
+      <input type="text" name="route_name" value="{{ delivery.route_name }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Truck name</span>
+      <input type="text" name="truck_name" value="{{ delivery.truck_name }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>ETA</span>
+      <input type="datetime-local" name="eta" value="{{ delivery.eta|replace(' ', 'T') if delivery.eta else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Load percent</span>
+      <input type="number" name="load_percent" min="0" max="100" step="1" value="{{ delivery.load_percent if delivery.load_percent is not none else '' }}" required />
+    </label>
+
+    <label class="form-field span-full">
+      <span>Dispatch notes</span>
+      <textarea name="notes" rows="4" required>{{ delivery.notes }}</textarea>
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create delivery{% else %}Save delivery{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

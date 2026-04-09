@@ -1,0 +1,792 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Customer 360{% endblock %}
+{% block kicker %}Customer 360{% endblock %}
+{% block page_title %}{{ customer.name }}{% endblock %}
+{% block page_description %}Customer-centered workspace for pipeline, work in progress, reminders, internal notes, and the future-ready email/calendar hub.{% endblock %}
+
+{% block page_actions %}
+  {% if current_user and current_user['role_name'] in ('admin', 'sales') %}
+    <a class="action-button" href="{{ url_for('crm.customers_edit', customer_id=customer.id) }}">Edit customer</a>
+    <a class="action-button" href="{{ url_for('crm.leads_create', customer_id=customer.id) }}">Add lead</a>
+    <a class="action-button accent" href="{{ url_for('crm.customers_index') }}">Back to customers</a>
+  {% else %}
+    <a class="action-button accent" href="{{ url_for('crm.dashboard') }}">Back to dashboard</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="view-grid">
+    <article class="card hero-card span-8">
+      <p class="module-tag">{{ customer.segment }} account</p>
+      <h3 class="hero-title">Customer 360 keeps sales, operations, reminders, and communications on one clean record.</h3>
+      <p class="hero-subtitle">
+        {{ customer.primary_contact or 'No primary contact on file' }}
+        {% if customer.phone %} / {{ customer.phone }}{% endif %}
+        {% if customer.email %} / {{ customer.email }}{% endif %}
+      </p>
+      <div class="customer-grid top-gap">
+        <div class="schedule-card">
+          <div class="row-title">Service address</div>
+          <div class="row-subtitle">{{ customer.service_address }}</div>
+        </div>
+        <div class="schedule-card">
+          <div class="row-title">Trade mix</div>
+          <div class="row-subtitle">{{ customer.trade_mix or 'Not set yet' }}</div>
+        </div>
+        <div class="schedule-card">
+          <div class="row-title">Account status</div>
+          <div class="chips top-gap">
+            <span class="status-pill">{{ customer.status }}</span>
+            {% if customer.is_repeat %}
+              <span class="status-pill success">Repeat customer</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="schedule-card">
+          <div class="row-title">Internal notes</div>
+          <div class="row-subtitle">{{ customer.notes or 'No customer-level note saved yet.' }}</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Account snapshot</h3>
+          <p class="panel-copy">High-signal counts for the current customer record.</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Contacts</span>
+          <strong>{{ summary.contacts }}</strong>
+          <div class="row-subtitle">People on the account</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Leads</span>
+          <strong>{{ summary.leads }}</strong>
+          <div class="row-subtitle">Intake records</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Opportunities</span>
+          <strong>{{ summary.opportunities }}</strong>
+          <div class="row-subtitle">Pipeline records</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Quotes</span>
+          <strong>{{ summary.quotes }}</strong>
+          <div class="row-subtitle">Sales documents</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Jobs</span>
+          <strong>{{ summary.jobs }}</strong>
+          <div class="row-subtitle">Production records</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Change orders</span>
+          <strong>{{ summary.change_orders }}</strong>
+          <div class="row-subtitle">Field scope shifts</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Field records</span>
+          <strong>{{ summary.field_records }}</strong>
+          <div class="row-subtitle">Permits, photos, and inspections</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Open tasks</span>
+          <strong>{{ summary.open_tasks }}</strong>
+          <div class="row-subtitle">Internal follow-up queue</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Reminders</span>
+          <strong>{{ summary.reminders_due }}</strong>
+          <div class="row-subtitle">Timed prompts</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Invoices</span>
+          <strong>{{ summary.invoices }}</strong>
+          <div class="row-subtitle">Billing documents</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Open balance</span>
+          <strong>{{ summary.open_balance|currency }}</strong>
+          <div class="row-subtitle">Current AR exposure</div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Account Contacts</h3>
+          <p class="panel-copy">Commercial-friendly contact stack for operations, billing, and approvals.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Contact</th>
+              <th>Role</th>
+              <th>Communication</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for contact in contacts %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ contact.full_name }}</div>
+                  <div class="row-subtitle">{{ contact.notes or 'No note saved' }}</div>
+                </td>
+                <td>
+                  <div class="row-subtitle">{{ contact.role_label }}</div>
+                  {% if contact.is_primary %}
+                    <span class="status-pill success">Primary</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="row-subtitle">{{ contact.phone or 'No phone' }}</div>
+                  <div class="row-subtitle">{{ contact.email or 'No email' }}</div>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <form method="post" action="{{ url_for('crm.customer_contacts_delete', contact_id=contact.id) }}" onsubmit="return confirm('Remove this contact?');">
+                      <button class="mini-link danger-link" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4">No additional account contacts have been saved yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Add contact</h3>
+          <p class="panel-copy">Track accounts payable, site contacts, board members, and other decision makers.</p>
+        </div>
+      </div>
+      <form class="form-grid" method="post" action="{{ url_for('crm.customer_contacts_create', customer_id=customer.id) }}">
+        <label class="form-field">
+          <span>Full name</span>
+          <input type="text" name="full_name" required />
+        </label>
+        <div class="customer-grid">
+          <label class="form-field">
+            <span>Role</span>
+            <select name="role_label">
+              {% for role in contact_roles %}
+                <option value="{{ role }}">{{ role }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Phone</span>
+            <input type="text" name="phone" />
+          </label>
+          <label class="form-field">
+            <span>Email</span>
+            <input type="email" name="email" />
+          </label>
+        </div>
+        <label class="form-field">
+          <span>Notes</span>
+          <textarea name="notes" rows="4"></textarea>
+        </label>
+        <label class="form-field checkbox-field span-full">
+          <input type="checkbox" name="is_primary" />
+          <span>Mark as the primary contact on this customer record.</span>
+        </label>
+        <div class="form-actions">
+          <button class="action-button accent" type="submit">Add contact</button>
+        </div>
+      </form>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Tasks and reminders</h3>
+          <p class="panel-copy">Operational follow-ups, ownership, and reminder timing for this customer.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Owner</th>
+              <th>Due</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in tasks %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ task.title }}</div>
+                  <div class="row-subtitle">{{ task.module_name }} / {{ task.priority|capitalize }}</div>
+                  <div class="row-subtitle">{{ task.details }}</div>
+                </td>
+                <td>{{ task.owner_name }}</td>
+                <td>
+                  <div class="row-subtitle">Due {{ task.due_date }}</div>
+                  <div class="row-subtitle">Reminder {{ task.reminder_at or 'Not set' }}</div>
+                </td>
+                <td>
+                  <span class="status-pill {% if task.status == 'completed' %}success{% elif task.status == 'cancelled' %}danger{% else %}warning{% endif %}">{{ task.status }}</span>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <form method="post" action="{{ url_for('crm.tasks_toggle', task_id=task.id) }}">
+                      <button class="mini-link" type="submit">{% if task.status in ('open', 'scheduled') %}Mark done{% else %}Reopen{% endif %}</button>
+                    </form>
+                    <form method="post" action="{{ url_for('crm.tasks_delete', task_id=task.id) }}" onsubmit="return confirm('Remove this task?');">
+                      <button class="mini-link danger-link" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5">No tasks or reminders are attached to this customer yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Add note or reminder</h3>
+          <p class="panel-copy">Keep internal context on the customer record without leaving the page.</p>
+        </div>
+      </div>
+      <form class="form-grid" method="post" action="{{ url_for('crm.customer_notes_create', customer_id=customer.id) }}">
+        <label class="form-field">
+          <span>Activity type</span>
+          <select name="activity_type">
+            {% for activity_type in activity_types %}
+              <option value="{{ activity_type }}" {% if activity_type == 'Note' %}selected{% endif %}>{{ activity_type }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="form-field">
+          <span>Title</span>
+          <input type="text" name="title" required />
+        </label>
+        <label class="form-field">
+          <span>Details</span>
+          <textarea name="details" rows="4" required></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="action-button" type="submit">Add note</button>
+        </div>
+      </form>
+
+      <form class="form-grid top-gap" method="post" action="{{ url_for('crm.customer_tasks_create', customer_id=customer.id) }}">
+        <label class="form-field">
+          <span>Task title</span>
+          <input type="text" name="title" required />
+        </label>
+        <div class="customer-grid">
+          <label class="form-field">
+            <span>Module</span>
+            <select name="module_name">
+              {% for module in task_modules %}
+                <option value="{{ module }}" {% if module == 'Customer 360' %}selected{% endif %}>{{ module }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Owner</span>
+            <select name="owner_name">
+              {% for owner in owners %}
+                <option value="{{ owner.full_name }}">{{ owner.full_name }} / {{ owner.role_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Due date</span>
+            <input type="date" name="due_date" required />
+          </label>
+          <label class="form-field">
+            <span>Reminder</span>
+            <input type="datetime-local" name="reminder_at" />
+          </label>
+          <label class="form-field">
+            <span>Status</span>
+            <select name="status">
+              {% for status in task_statuses %}
+                <option value="{{ status }}" {% if status == 'open' %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Priority</span>
+            <select name="priority">
+              {% for priority in task_priorities %}
+                <option value="{{ priority }}" {% if priority == 'medium' %}selected{% endif %}>{{ priority|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label class="form-field">
+          <span>Details</span>
+          <textarea name="details" rows="4" required></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="action-button accent" type="submit">Add task</button>
+        </div>
+      </form>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-6">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Email hub</h3>
+          <p class="panel-copy">Manual logging now, structured for direct inbox sync later.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Message</th>
+              <th>Owner</th>
+              <th>Status</th>
+              <th>Sent</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for email in emails %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ email.subject }}</div>
+                  <div class="row-subtitle">{{ email.direction }} / {{ email.contact_email }}</div>
+                  <div class="row-subtitle">{{ email.integration_status }}</div>
+                </td>
+                <td>{{ email.owner_name }}</td>
+                <td>{{ email.status }}</td>
+                <td>{{ email.sent_at }}</td>
+                <td>
+                  <div class="table-actions">
+                    <form method="post" action="{{ url_for('crm.emails_delete', message_id=email.id) }}" onsubmit="return confirm('Delete this email log?');">
+                      <button class="mini-link danger-link" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5">No email activity has been logged for this customer yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <form class="form-grid top-gap" method="post" action="{{ url_for('crm.customer_emails_create', customer_id=customer.id) }}">
+        <div class="customer-grid">
+          <label class="form-field">
+            <span>Direction</span>
+            <select name="direction">
+              {% for direction in email_directions %}
+                <option value="{{ direction }}">{{ direction }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Status</span>
+            <select name="status">
+              {% for status in email_statuses %}
+                <option value="{{ status }}" {% if status == 'Sent' %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Contact email</span>
+            <input type="email" name="contact_email" value="{{ customer.email or '' }}" required />
+          </label>
+          <label class="form-field">
+            <span>Owner</span>
+            <select name="owner_name">
+              {% for owner in owners %}
+                <option value="{{ owner.full_name }}">{{ owner.full_name }} / {{ owner.role_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Logged at</span>
+            <input type="datetime-local" name="sent_at" required />
+          </label>
+          <label class="form-field">
+            <span>Integration state</span>
+            <select name="integration_status">
+              {% for status in integration_statuses %}
+                <option value="{{ status }}" {% if status == 'Manual log' %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label class="form-field">
+          <span>Subject</span>
+          <input type="text" name="subject" required />
+        </label>
+        <label class="form-field">
+          <span>Body summary</span>
+          <textarea name="body" rows="4" required></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="action-button" type="submit">Log email</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="card span-6">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Calendar hub</h3>
+          <p class="panel-copy">Upcoming calls, site visits, and reminders in the same customer workspace.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Owner</th>
+              <th>Status</th>
+              <th>Start</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in calendar_events %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ event.title }}</div>
+                  <div class="row-subtitle">{{ event.event_type }} / {{ event.location }}</div>
+                  <div class="row-subtitle">{{ event.integration_status }}</div>
+                </td>
+                <td>{{ event.owner_name }}</td>
+                <td>{{ event.status }}</td>
+                <td>
+                  <div class="row-subtitle">{{ event.starts_at }}</div>
+                  <div class="row-subtitle">{{ event.ends_at or 'No end time set' }}</div>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <form method="post" action="{{ url_for('crm.calendar_delete', event_id=event.id) }}" onsubmit="return confirm('Delete this calendar entry?');">
+                      <button class="mini-link danger-link" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5">No calendar events are attached to this customer yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <form class="form-grid top-gap" method="post" action="{{ url_for('crm.customer_calendar_create', customer_id=customer.id) }}">
+        <div class="customer-grid">
+          <label class="form-field">
+            <span>Event type</span>
+            <select name="event_type">
+              {% for event_type in calendar_event_types %}
+                <option value="{{ event_type }}">{{ event_type }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Status</span>
+            <select name="status">
+              {% for status in calendar_statuses %}
+                <option value="{{ status }}" {% if status == 'Planned' %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Owner</span>
+            <select name="owner_name">
+              {% for owner in owners %}
+                <option value="{{ owner.full_name }}">{{ owner.full_name }} / {{ owner.role_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Location</span>
+            <input type="text" name="location" required />
+          </label>
+          <label class="form-field">
+            <span>Starts at</span>
+            <input type="datetime-local" name="starts_at" required />
+          </label>
+          <label class="form-field">
+            <span>Ends at</span>
+            <input type="datetime-local" name="ends_at" />
+          </label>
+          <label class="form-field">
+            <span>Integration state</span>
+            <select name="integration_status">
+              {% for status in integration_statuses %}
+                <option value="{{ status }}" {% if status == 'Manual log' %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label class="form-field">
+          <span>Title</span>
+          <input type="text" name="title" required />
+        </label>
+        <label class="form-field">
+          <span>Notes</span>
+          <textarea name="notes" rows="4" required></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="action-button" type="submit">Add calendar event</button>
+        </div>
+      </form>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Recent timeline</h3>
+          <p class="panel-copy">Internal notes, reminders, and workflow touchpoints for the account.</p>
+        </div>
+      </div>
+      <div class="timeline">
+        {% for activity in activities %}
+          <div class="timeline-item schedule-card">
+            <div>
+              <div class="time-chip">{{ activity.activity_date }}</div>
+              <div class="row-subtitle top-gap">{{ activity.activity_type }}</div>
+            </div>
+            <div>
+              <div class="row-title">{{ activity.title }}</div>
+              <div class="row-subtitle">{{ activity.owner_name }}</div>
+              <div class="row-subtitle top-gap">{{ activity.details }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="row-subtitle">No activity is on the customer timeline yet.</div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Pipeline and workstream</h3>
+          <p class="panel-copy">All related CRM, job, dispatch, and billing records connected to this customer.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Record</th>
+              <th>Status</th>
+              <th>Value / date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for lead in leads %}
+              <tr>
+                <td>Lead</td>
+                <td>
+                  <div class="row-title">{{ lead.trade_interest }}</div>
+                  <div class="row-subtitle">{{ lead.source }} / {{ lead.assigned_rep }}</div>
+                </td>
+                <td>{{ lead.stage }}</td>
+                <td>{{ lead.estimated_value|currency }}</td>
+                <td>
+                  {% if current_user and current_user['role_name'] in ('admin', 'sales') %}
+                    <a class="mini-link" href="{{ url_for('crm.leads_edit', lead_id=lead.id) }}">Open</a>
+                  {% else %}
+                    <span class="row-subtitle">View</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            {% for opportunity in opportunities %}
+              <tr>
+                <td>Opportunity</td>
+                <td>
+                  <div class="row-title">{{ opportunity.name }}</div>
+                  <div class="row-subtitle">{{ opportunity.subtitle }}</div>
+                </td>
+                <td>{{ opportunity.stage }}</td>
+                <td>{{ opportunity.value|currency }} / {{ opportunity.close_date }}</td>
+                <td>
+                  {% if current_user and current_user['role_name'] in ('admin', 'sales') %}
+                    <a class="mini-link" href="{{ url_for('crm.opportunities_edit', opportunity_id=opportunity.id) }}">Open</a>
+                  {% else %}
+                    <span class="row-subtitle">View</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            {% for quote in quotes %}
+              <tr>
+                <td>Quote</td>
+                <td>
+                  <div class="row-title">{{ quote.quote_number }}</div>
+                  <div class="row-subtitle">{{ quote.option_name }}</div>
+                </td>
+                <td>{{ quote.status }}</td>
+                <td>{{ quote.amount|currency }} / {{ quote.expiration_date or 'No expiry' }}</td>
+                <td>
+                  {% if current_user and current_user['role_name'] in ('admin', 'sales') %}
+                    <div class="table-actions">
+                      <a class="mini-link" href="{{ url_for('crm.quotes_edit', quote_id=quote.id) }}">Edit</a>
+                      <a class="mini-link" href="{{ url_for('crm.quotes_contract', quote_id=quote.id) }}">Contract</a>
+                    </div>
+                  {% else %}
+                    <span class="row-subtitle">View</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            {% for job in jobs %}
+              <tr>
+                <td>Job</td>
+                <td>
+                  <div class="row-title">{{ job.name }}</div>
+                  <div class="row-subtitle">{{ job.crew_name or 'No crew assigned' }} / {{ job.delivery_count }} deliveries</div>
+                </td>
+                <td>{{ job.status }}</td>
+                <td>{{ job.committed_revenue|currency }} / {{ job.scheduled_start or 'TBD' }}</td>
+                <td>
+                  <div class="table-actions">
+                    <a class="mini-link" href="{{ url_for('crm.job_materials_index', job_id=job.id) }}">Materials</a>
+                    <a class="mini-link" href="{{ url_for('crm.jobs_costing', job_id=job.id) }}">Costing</a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            {% for change_order in change_orders %}
+              <tr>
+                <td>Change Order</td>
+                <td>
+                  <div class="row-title">{{ change_order.change_number }}</div>
+                  <div class="row-subtitle">{{ change_order.title }}</div>
+                  <div class="row-subtitle">{{ change_order.job_name }}</div>
+                </td>
+                <td>{{ change_order.status }}</td>
+                <td>{{ change_order.amount|currency }} / {{ change_order.approved_date or 'Pending approval' }}</td>
+                <td>
+                  <div class="table-actions">
+                    <a class="mini-link" href="{{ url_for('crm.jobs_execution', job_id=change_order.job_id) }}">Execution</a>
+                    {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+                      <a class="mini-link" href="{{ url_for('crm.change_orders_edit', change_order_id=change_order.id) }}">Edit</a>
+                    {% endif %}
+                    {% if change_order.is_billable and change_order.status in ('Approved', 'Invoiced') %}
+                      <a class="mini-link" href="{{ url_for('crm.invoices_create', job_id=change_order.job_id, change_order_id=change_order.id) }}">Bill</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            {% for invoice in invoices %}
+              <tr>
+                <td>Invoice</td>
+                <td>
+                  <div class="row-title">{{ invoice.invoice_number }}</div>
+                  <div class="row-subtitle">{{ invoice.billing_type }} / {{ invoice.remaining_balance|currency }} remaining</div>
+                  {% if invoice.application_number %}
+                    <div class="row-subtitle">{{ invoice.application_number }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ invoice.status }}</td>
+                <td>{{ invoice.amount|currency }} / {{ invoice.due_date }}</td>
+                <td>
+                  {% if current_user and current_user['role_name'] in ('admin', 'sales', 'accounting') %}
+                    <a class="mini-link" href="{{ url_for('crm.invoices_payment', invoice_id=invoice.id) }}">Payments</a>
+                  {% else %}
+                    <span class="row-subtitle">View</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            {% for document in job_documents %}
+              <tr>
+                <td>Field Record</td>
+                <td>
+                  <div class="row-title">{{ document.title }}</div>
+                  <div class="row-subtitle">{{ document.record_type }} / {{ document.job_name }}</div>
+                  <div class="row-subtitle">{{ document.file_reference or 'No file reference' }}</div>
+                  {% if document.original_filename %}
+                    <div class="row-subtitle">Upload: {{ document.original_filename }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ document.status }}</td>
+                <td>{{ document.captured_at }}</td>
+                <td>
+                  <div class="table-actions">
+                    <a class="mini-link" href="{{ url_for('crm.jobs_execution', job_id=document.job_id) }}">Execution</a>
+                    {% if document.stored_file_name %}
+                      <a class="mini-link" href="{{ url_for('crm.job_documents_file', document_id=document.id) }}">Download</a>
+                    {% endif %}
+                    {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+                      <a class="mini-link" href="{{ url_for('crm.job_documents_edit', document_id=document.id) }}">Edit</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            {% for delivery in deliveries %}
+              <tr>
+                <td>Dispatch</td>
+                <td>
+                  <div class="row-title">{{ delivery.route_name }}</div>
+                  <div class="row-subtitle">{{ delivery.job_name or 'No linked job' }} / {{ delivery.truck_name }}</div>
+                </td>
+                <td>{{ delivery.status }}</td>
+                <td>{{ delivery.eta }}</td>
+                <td>
+                  {% if current_user and current_user['role_name'] in ('admin', 'dispatch') %}
+                    <a class="mini-link" href="{{ url_for('crm.dispatch_edit', delivery_id=delivery.id) }}">Open</a>
+                  {% else %}
+                    <span class="row-subtitle">View</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            {% if not leads and not opportunities and not quotes and not jobs and not change_orders and not invoices and not job_documents and not deliveries %}
+              <tr>
+                <td colspan="5">No linked pipeline, operations, or billing records exist for this customer yet.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

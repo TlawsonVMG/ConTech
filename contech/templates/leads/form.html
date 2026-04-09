@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Lead{% else %}Edit Lead{% endif %}{% endblock %}
+{% block kicker %}Sales pipeline{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Lead{% else %}Edit Lead{% endif %}{% endblock %}
+{% block page_description %}Capture the source, rep, value, and job interest before the lead becomes an opportunity.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.leads_index') }}">Back to leads</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Linked customer</span>
+      <select name="customer_id">
+        <option value="">Unlinked</option>
+        {% for customer in customers %}
+          <option value="{{ customer.id }}" {% if lead.customer_id|string == customer.id|string %}selected{% endif %}>{{ customer.name }} ({{ customer.segment }})</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Lead source</span>
+      <select name="source">
+        {% for source in source_options %}
+          <option value="{{ source }}" {% if lead.source == source %}selected{% endif %}>{{ source }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field span-full">
+      <span>Trade interest</span>
+      <input type="text" name="trade_interest" value="{{ lead.trade_interest }}" placeholder="Roof replacement, siding repair, storm restoration" required />
+    </label>
+
+    <label class="form-field">
+      <span>Stage</span>
+      <select name="stage">
+        {% for stage in stage_options %}
+          <option value="{{ stage }}" {% if lead.stage == stage %}selected{% endif %}>{{ stage }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Assigned rep</span>
+      <select name="assigned_rep">
+        <option value="">Select rep</option>
+        {% for user in sales_reps %}
+          <option value="{{ user.rep_value }}" {% if lead.assigned_rep == user.rep_value %}selected{% endif %}>{{ user.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Inspection date</span>
+      <input type="date" name="inspection_date" value="{{ lead.inspection_date or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Estimated value</span>
+      <input type="number" name="estimated_value" min="0" step="0.01" value="{{ lead.estimated_value if lead.estimated_value is not none else '' }}" required />
+    </label>
+
+    <label class="form-field checkbox-field span-full">
+      <input type="checkbox" name="is_commercial" {% if lead.is_commercial %}checked{% endif %} />
+      <span>Commercial lead</span>
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create lead{% else %}Save lead{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

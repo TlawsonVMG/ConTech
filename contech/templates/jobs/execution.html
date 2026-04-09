@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Job Execution{% endblock %}
+{% block kicker %}Field execution{% endblock %}
+{% block page_title %}Job Execution{% endblock %}
+{% block page_description %}Track field changes, permits, photos, inspection notes, and billing-ready execution details for the live job.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.jobs_index') }}">Back to jobs</a>
+  <a class="action-button" href="{{ url_for('crm.customers_detail', customer_id=job.customer_id) }}">Customer 360</a>
+  <a class="action-button" href="{{ url_for('crm.job_materials_index', job_id=job.id) }}">Materials</a>
+  <a class="action-button" href="{{ url_for('crm.jobs_costing', job_id=job.id) }}">Costing</a>
+  <a class="action-button accent" href="{{ url_for('crm.invoices_create', job_id=job.id) }}">Create invoice</a>
+{% endblock %}
+
+{% block content %}
+  <section class="view-grid">
+    <article class="card span-8">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">{{ job.name }}</h3>
+          <p class="panel-copy">{{ job.customer_name }} / {{ job.scope }}</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Status</span>
+          <strong>{{ job.status }}</strong>
+          <div class="row-subtitle">Current production state</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Start</span>
+          <strong>{{ job.scheduled_start or 'Not scheduled' }}</strong>
+          <div class="row-subtitle">Crew {{ job.crew_name or 'Unassigned' }}</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Quote</span>
+          <strong>{{ job.quote_number or 'No quote' }}</strong>
+          <div class="row-subtitle">{{ job.option_name or 'Job-created record' }}</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Deposit</span>
+          <strong>{{ (job.deposit_received or 0)|currency }}</strong>
+          <div class="row-subtitle">Of {{ (job.deposit_required or 0)|currency }} captured</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Execution snapshot</h3>
+          <p class="panel-copy">Commercial field pressure, documentation, and billing readiness in one place.</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Revised contract</span>
+          <strong>{{ summary.revised_contract_value|currency }}</strong>
+          <div class="row-subtitle">Base revenue plus approved billable changes</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Approved changes</span>
+          <strong>{{ summary.approved_change_revenue|currency }}</strong>
+          <div class="row-subtitle">Approved field revenue</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Open changes</span>
+          <strong>{{ summary.open_change_orders }}</strong>
+          <div class="row-subtitle">Still awaiting approval or scope direction</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Field records</span>
+          <strong>{{ summary.field_record_count }}</strong>
+          <div class="row-subtitle">{{ summary.open_field_records }} still in review</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Invoiced</span>
+          <strong>{{ summary.invoiced_total|currency }}</strong>
+          <div class="row-subtitle">{{ summary.invoice_count }} billing records on file</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Open AR</span>
+          <strong>{{ summary.open_balance|currency }}</strong>
+          <div class="row-subtitle">Outstanding balance tied to this job</div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Change orders</h3>
+          <p class="panel-copy">Capture field discoveries, approvals, schedule impact, and billing handoff without leaving the job.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Change</th>
+              <th>Status</th>
+              <th>Impact</th>
+              <th>Owner</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for change_order in change_orders %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ change_order.change_number }} / {{ change_order.title }}</div>
+                  <div class="row-subtitle">{{ change_order.description }}</div>
+                  <div class="row-subtitle">Requested {{ change_order.requested_date }}{% if change_order.approved_date %} / approved {{ change_order.approved_date }}{% endif %}</div>
+                </td>
+                <td>
+                  <span class="status-pill {% if change_order.status in ('Pending Approval', 'Draft') %}warning{% elif change_order.status == 'Rejected' %}danger{% else %}success{% endif %}">{{ change_order.status }}</span>
+                  <div class="row-subtitle top-gap">{% if change_order.is_billable %}Billable{% else %}Non-billable{% endif %}</div>
+                </td>
+                <td>
+                  <div class="row-subtitle">Revenue {{ change_order.amount|currency }}</div>
+                  <div class="row-subtitle">Cost {{ change_order.cost_impact|currency }}</div>
+                  <div class="row-subtitle">Schedule +{{ change_order.schedule_days }} day(s)</div>
+                </td>
+                <td>
+                  <div class="row-subtitle">{{ change_order.owner_name }}</div>
+                  <div class="row-subtitle">{{ change_order.invoice_count }} invoices linked</div>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    {% if change_order.is_billable and change_order.status in ('Approved', 'Invoiced') %}
+                      <a class="mini-link" href="{{ url_for('crm.invoices_create', job_id=job.id, change_order_id=change_order.id) }}">Bill change</a>
+                    {% endif %}
+                    {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+                      <a class="mini-link" href="{{ url_for('crm.change_orders_edit', change_order_id=change_order.id) }}">Edit</a>
+                      <form method="post" action="{{ url_for('crm.change_orders_delete', change_order_id=change_order.id) }}" onsubmit="return confirm('Delete this change order?');">
+                        <button class="mini-link danger-link" type="submit">Delete</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                  <div class="row-subtitle top-gap">{{ change_order.version_count }} version(s)</div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5">No change orders have been logged on this job yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Add change order</h3>
+          <p class="panel-copy">Track field-discovered scope changes with schedule and margin visibility.</p>
+        </div>
+      </div>
+      {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+        <form class="form-grid" method="post" action="{{ url_for('crm.change_orders_create', job_id=job.id) }}">
+          <div class="customer-grid">
+            <label class="form-field">
+              <span>Change number</span>
+              <input type="text" name="change_number" value="{{ change_order_defaults.change_number }}" required />
+            </label>
+            <label class="form-field">
+              <span>Status</span>
+              <select name="status">
+                {% for status in change_order_statuses %}
+                  <option value="{{ status }}" {% if change_order_defaults.status == status %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="form-field">
+              <span>Requested date</span>
+              <input type="date" name="requested_date" value="{{ change_order_defaults.requested_date }}" required />
+            </label>
+            <label class="form-field">
+              <span>Approved date</span>
+              <input type="date" name="approved_date" value="{{ change_order_defaults.approved_date or '' }}" />
+            </label>
+            <label class="form-field">
+              <span>Amount</span>
+              <input type="number" name="amount" min="0" step="0.01" required />
+            </label>
+            <label class="form-field">
+              <span>Cost impact</span>
+              <input type="number" name="cost_impact" min="0" step="0.01" required />
+            </label>
+            <label class="form-field">
+              <span>Schedule impact (days)</span>
+              <input type="number" name="schedule_days" min="0" step="1" value="{{ change_order_defaults.schedule_days }}" required />
+            </label>
+            <label class="form-field">
+              <span>Owner</span>
+              <select name="owner_name">
+                {% for owner in owners %}
+                  <option value="{{ owner.full_name }}" {% if change_order_defaults.owner_name == owner.full_name %}selected{% endif %}>{{ owner.full_name }} / {{ owner.role_name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <label class="form-field">
+            <span>Title</span>
+            <input type="text" name="title" required />
+          </label>
+          <label class="form-field">
+            <span>Description</span>
+            <textarea name="description" rows="4" required></textarea>
+          </label>
+          <label class="form-field">
+            <span>Field notes</span>
+            <textarea name="notes" rows="4" required></textarea>
+          </label>
+          <label class="form-field checkbox-field span-full">
+            <input type="checkbox" name="is_billable" {% if change_order_defaults.is_billable %}checked{% endif %} />
+            <span>This change order should be available for billing.</span>
+          </label>
+          <div class="form-actions">
+            <button class="action-button accent" type="submit">Log change order</button>
+          </div>
+        </form>
+      {% else %}
+        <div class="row-subtitle">Your role can review field execution, but only sales, dispatch, or admin users can log change orders.</div>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Field records</h3>
+          <p class="panel-copy">Permits, photos, inspection notes, material receipts, and other execution artifacts tied to the job packet.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Record</th>
+              <th>Captured</th>
+              <th>Status</th>
+              <th>Owner</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for document in documents %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ document.title }}</div>
+                  <div class="row-subtitle">{{ document.record_type }}</div>
+                  <div class="row-subtitle">{{ document.notes }}</div>
+                  <div class="row-subtitle">{{ document.file_reference or 'No file reference logged' }}</div>
+                  {% if document.original_filename %}
+                    <div class="row-subtitle">Upload: {{ document.original_filename }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ document.captured_at }}</td>
+                <td>
+                  <span class="status-pill {% if document.status in ('Logged', 'Pending Review') %}warning{% else %}success{% endif %}">{{ document.status }}</span>
+                </td>
+                <td>{{ document.owner_name }}</td>
+                <td>
+                  <div class="table-actions">
+                    {% if document.stored_file_name %}
+                      <a class="mini-link" href="{{ url_for('crm.job_documents_file', document_id=document.id) }}">Download</a>
+                    {% endif %}
+                    {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+                      <a class="mini-link" href="{{ url_for('crm.job_documents_edit', document_id=document.id) }}">Edit</a>
+                      <form method="post" action="{{ url_for('crm.job_documents_delete', document_id=document.id) }}" onsubmit="return confirm('Delete this field record?');">
+                        <button class="mini-link danger-link" type="submit">Delete</button>
+                      </form>
+                    {% else %}
+                      <span class="row-subtitle">View only</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5">No field records have been logged on this job yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Add field record</h3>
+          <p class="panel-copy">Keep the job packet current without leaving the production record.</p>
+        </div>
+      </div>
+      {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+        <form class="form-grid" method="post" action="{{ url_for('crm.job_documents_create', job_id=job.id) }}" enctype="multipart/form-data">
+          <div class="customer-grid">
+            <label class="form-field">
+              <span>Record type</span>
+              <select name="record_type">
+                {% for record_type in document_types %}
+                  <option value="{{ record_type }}" {% if document_defaults.record_type == record_type %}selected{% endif %}>{{ record_type }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="form-field">
+              <span>Status</span>
+              <select name="status">
+                {% for status in document_statuses %}
+                  <option value="{{ status }}" {% if document_defaults.status == status %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="form-field">
+              <span>Captured at</span>
+              <input type="datetime-local" name="captured_at" value="{{ document_defaults.captured_at|replace(' ', 'T') }}" required />
+            </label>
+            <label class="form-field">
+              <span>Owner</span>
+              <select name="owner_name">
+                {% for owner in owners %}
+                  <option value="{{ owner.full_name }}" {% if document_defaults.owner_name == owner.full_name %}selected{% endif %}>{{ owner.full_name }} / {{ owner.role_name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <label class="form-field">
+            <span>Title</span>
+            <input type="text" name="title" required />
+          </label>
+          <label class="form-field">
+            <span>File reference</span>
+            <input type="text" name="file_reference" placeholder="photos/job-123/front-elevation.jpg" />
+          </label>
+          <label class="form-field">
+            <span>Upload file</span>
+            <input type="file" name="upload_file" />
+          </label>
+          <label class="form-field">
+            <span>Notes</span>
+            <textarea name="notes" rows="4" required></textarea>
+          </label>
+          <div class="form-actions">
+            <button class="action-button accent" type="submit">Add field record</button>
+          </div>
+        </form>
+      {% else %}
+        <div class="row-subtitle">Your role can review field records here, but only sales, dispatch, or admin users can add them.</div>
+      {% endif %}
+    </article>
+  </section>
+
+  {% if deliveries %}
+    <section class="card top-gap">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Recent deliveries</h3>
+          <p class="panel-copy">Execution stays grounded in the latest dispatch movement.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Route</th>
+              <th>Truck</th>
+              <th>ETA</th>
+              <th>Status</th>
+              <th>Load</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for delivery in deliveries %}
+              <tr>
+                <td>{{ delivery.route_name }}</td>
+                <td>{{ delivery.truck_name }}</td>
+                <td>{{ delivery.eta }}</td>
+                <td>{{ delivery.status }}</td>
+                <td>{{ delivery.load_percent }}%</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

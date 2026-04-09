@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Opportunities{% endblock %}
+{% block kicker %}Sales pipeline{% endblock %}
+{% block page_title %}Opportunities{% endblock %}
+{% block page_description %}Manage quoted work, close dates, priority, and the deal records that lead into jobs and invoices.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button accent" href="{{ url_for('crm.opportunities_create') }}">New opportunity</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="stage">
+        <option value="">All stages</option>
+        {% for stage in stage_options %}
+          <option value="{{ stage }}" {% if selected_stage == stage %}selected{% endif %}>{{ stage }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_stage %}
+        <a class="action-button" href="{{ url_for('crm.opportunities_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card top-gap">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Opportunity</th>
+            <th>Stage</th>
+            <th>Close date</th>
+            <th>Value</th>
+            <th>Priority</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for opportunity in opportunities %}
+            <tr>
+              <td>
+                <div class="row-title">{{ opportunity.name }}</div>
+                <div class="row-subtitle">{{ opportunity.subtitle }}</div>
+                <div class="row-subtitle">{{ opportunity.customer_name or 'Unlinked customer' }}</div>
+              </td>
+              <td>{{ opportunity.stage }}</td>
+              <td>{{ opportunity.close_date }}</td>
+              <td>{{ opportunity.value|currency }}</td>
+              <td>{{ opportunity.priority }}</td>
+              <td>
+                <div class="table-actions">
+                  {% if opportunity.customer_id %}
+                    <a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=opportunity.customer_id) }}">Customer 360</a>
+                  {% endif %}
+                  <a class="mini-link" href="{{ url_for('crm.opportunities_edit', opportunity_id=opportunity.id) }}">Edit</a>
+                  <a class="mini-link" href="{{ url_for('crm.quotes_create', opportunity_id=opportunity.id) }}">Create quote</a>
+                  <form method="post" action="{{ url_for('crm.opportunities_delete', opportunity_id=opportunity.id) }}" onsubmit="return confirm('Delete this opportunity?');">
+                    <button class="mini-link danger-link" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No opportunities found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

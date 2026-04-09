@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Jobs{% endblock %}
+{% block kicker %}Production workflow{% endblock %}
+{% block page_title %}Jobs{% endblock %}
+{% block page_description %}Manage approved work, reserve material, schedule dispatch, and hand jobs forward to billing.{% endblock %}
+
+{% block page_actions %}
+  {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+    <a class="action-button accent" href="{{ url_for('crm.jobs_create') }}">New job</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_status %}
+        <a class="action-button" href="{{ url_for('crm.jobs_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card top-gap">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Status</th>
+            <th>Schedule</th>
+            <th>Ops</th>
+            <th>Revenue</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+            <tr>
+              <td>
+                <div class="row-title">{{ job.name }}</div>
+                <div class="row-subtitle">{{ job.scope }}</div>
+                <div class="row-subtitle">{{ job.customer_name }}</div>
+                <div class="row-subtitle">{{ job.quote_number or 'No quote' }}{% if job.option_name %} / {{ job.option_name }}{% endif %}</div>
+              </td>
+              <td>{{ job.status }}</td>
+              <td>
+                <div class="row-subtitle">Start: {{ job.scheduled_start or 'Not scheduled' }}</div>
+                <div class="row-subtitle">Crew: {{ job.crew_name or 'Unassigned' }}</div>
+              </td>
+              <td>
+                <div class="row-subtitle">Materials: {{ job.material_count }}</div>
+                <div class="row-subtitle">Deliveries: {{ job.delivery_count }}</div>
+                <div class="row-subtitle">Invoices: {{ job.invoice_count }}</div>
+                <div class="row-subtitle">Changes: {{ job.change_order_count }} / Field records: {{ job.field_record_count }}</div>
+              </td>
+              <td>
+                <div class="row-title">{{ job.committed_revenue|currency }}</div>
+                <div class="row-subtitle">Tracked cost: {{ job.actual_cost|currency }}</div>
+                <div class="row-subtitle">Approved COs: {{ job.approved_change_revenue|currency }}</div>
+              </td>
+              <td>
+                <div class="table-actions">
+                  <a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=job.customer_id) }}">Customer 360</a>
+                  {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+                    <a class="mini-link" href="{{ url_for('crm.jobs_edit', job_id=job.id) }}">Edit</a>
+                  {% endif %}
+                  <a class="mini-link" href="{{ url_for('crm.jobs_execution', job_id=job.id) }}">Execution</a>
+                  <a class="mini-link" href="{{ url_for('crm.job_materials_index', job_id=job.id) }}">Materials</a>
+                  <a class="mini-link" href="{{ url_for('crm.jobs_costing', job_id=job.id) }}">Costing</a>
+                  {% if current_user and current_user['role_name'] in ('admin', 'dispatch') %}
+                    <a class="mini-link" href="{{ url_for('crm.dispatch_create', job_id=job.id) }}">Schedule delivery</a>
+                  {% endif %}
+                  <a class="mini-link" href="{{ url_for('crm.invoices_create', job_id=job.id) }}">Create invoice</a>
+                  {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+                    <form method="post" action="{{ url_for('crm.jobs_delete', job_id=job.id) }}" onsubmit="return confirm('Delete this job?');">
+                      <button class="mini-link danger-link" type="submit">Delete</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No jobs found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

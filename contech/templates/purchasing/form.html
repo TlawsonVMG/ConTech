@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Purchase Request{% else %}Edit Purchase Request{% endif %}{% endblock %}
+{% block kicker %}Supplier workflow{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Purchase Request{% else %}Edit Purchase Request{% endif %}{% endblock %}
+{% block page_description %}Capture vendor follow-up, due dates, and owner accountability for materials that need sourcing.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.purchasing_index') }}">Back to purchasing</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Job</span>
+      <select name="job_id">
+        <option value="">No linked job</option>
+        {% for job in jobs %}
+          <option value="{{ job.id }}" {% if purchase_request.job_id|string == job.id|string %}selected{% endif %}>{{ job.name }} / {{ job.customer_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Inventory item</span>
+      <select name="inventory_item_id">
+        <option value="">No linked inventory item</option>
+        {% for item in inventory_items %}
+          <option value="{{ item.id }}" {% if purchase_request.inventory_item_id|string == item.id|string %}selected{% endif %}>{{ item.item_name }} / {{ item.sku }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <input type="hidden" name="job_material_id" value="{{ purchase_request.job_material_id or '' }}" />
+
+    <label class="form-field">
+      <span>Vendor</span>
+      <select name="vendor_id">
+        <option value="">Select vendor</option>
+        {% for vendor in vendors %}
+          <option value="{{ vendor.id }}" {% if purchase_request.vendor_id|string == vendor.id|string %}selected{% endif %}>{{ vendor.name }} / {{ vendor.category }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Owner</span>
+      <select name="owner_name" required>
+        {% for owner in owners %}
+          <option value="{{ owner.full_name }}" {% if purchase_request.owner_name == owner.full_name %}selected{% endif %}>{{ owner.full_name }} / {{ owner.role_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Status</span>
+      <select name="status">
+        {% for status in statuses %}
+          <option value="{{ status }}" {% if purchase_request.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Priority</span>
+      <select name="priority">
+        {% for priority in priorities %}
+          <option value="{{ priority }}" {% if purchase_request.priority == priority %}selected{% endif %}>{{ priority|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Need by</span>
+      <input type="date" name="needed_by" value="{{ purchase_request.needed_by or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>ETA date</span>
+      <input type="date" name="eta_date" value="{{ purchase_request.eta_date or '' }}" />
+    </label>
+
+    <label class="form-field span-full">
+      <span>Title</span>
+      <input type="text" name="title" value="{{ purchase_request.title }}" required />
+    </label>
+
+    <label class="form-field span-full">
+      <span>Details</span>
+      <textarea name="details" rows="4" required>{{ purchase_request.details }}</textarea>
+    </label>
+
+    <label class="form-field">
+      <span>Requested qty</span>
+      <input type="number" name="requested_qty" min="0" step="0.01" value="{{ purchase_request.requested_qty if purchase_request.requested_qty is not none else '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Ordered qty</span>
+      <input type="number" name="ordered_qty" min="0" step="0.01" value="{{ purchase_request.ordered_qty if purchase_request.ordered_qty is not none else '0' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Received qty</span>
+      <input type="number" name="received_qty" min="0" step="0.01" value="{{ purchase_request.received_qty if purchase_request.received_qty is not none else '0' }}" required />
+    </label>
+
+    <label class="form-field span-full">
+      <span>Vendor notes</span>
+      <textarea name="vendor_notes" rows="4" required>{{ purchase_request.vendor_notes }}</textarea>
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create request{% else %}Save request{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

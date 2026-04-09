@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Leads{% endblock %}
+{% block kicker %}Sales pipeline{% endblock %}
+{% block page_title %}Leads{% endblock %}
+{% block page_description %}Track intake, inspections, quote prep, and the early signals of demand across residential and commercial work.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button accent" href="{{ url_for('crm.leads_create') }}">New lead</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="stage">
+        <option value="">All stages</option>
+        {% for stage in stage_options %}
+          <option value="{{ stage }}" {% if selected_stage == stage %}selected{% endif %}>{{ stage }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_stage %}
+        <a class="action-button" href="{{ url_for('crm.leads_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card top-gap">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Lead</th>
+            <th>Source</th>
+            <th>Stage</th>
+            <th>Rep</th>
+            <th>Value</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in leads %}
+            <tr>
+              <td>
+                <div class="row-title">{{ lead.trade_interest }}</div>
+                <div class="row-subtitle">{{ lead.customer_name or 'Unlinked customer' }}</div>
+                <div class="row-subtitle">{% if lead.inspection_date %}Inspection: {{ lead.inspection_date }}{% else %}No inspection date set{% endif %}</div>
+              </td>
+              <td>{{ lead.source }}</td>
+              <td>{{ lead.stage }}</td>
+              <td>{{ lead.assigned_rep }}</td>
+              <td>{{ lead.estimated_value|currency }}</td>
+              <td>
+                <div class="table-actions">
+                  <a class="mini-link" href="{{ url_for('crm.leads_edit', lead_id=lead.id) }}">Edit</a>
+                  {% if not lead.opportunity_id %}
+                    <a class="mini-link" href="{{ url_for('crm.opportunities_create', lead_id=lead.id) }}">Create opportunity</a>
+                  {% endif %}
+                  <form method="post" action="{{ url_for('crm.leads_delete', lead_id=lead.id) }}" onsubmit="return confirm('Delete this lead?');">
+                    <button class="mini-link danger-link" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No leads found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

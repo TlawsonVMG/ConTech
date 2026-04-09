@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Quotes{% endblock %}
+{% block kicker %}Sales documents{% endblock %}
+{% block page_title %}Quotes{% endblock %}
+{% block page_description %}Manage streamlined fixed-margin contracts, approvals, and the documents that convert sales work into jobs.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button accent" href="{{ url_for('crm.quotes_create') }}">New quote</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_status %}
+        <a class="action-button" href="{{ url_for('crm.quotes_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card top-gap">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Quote</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th>Amount</th>
+            <th>Dates</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for quote in quotes %}
+            <tr>
+              <td>
+                <div class="row-title">{{ quote.quote_number }} / {{ quote.option_name }}</div>
+                <div class="row-subtitle">{{ quote.description }}</div>
+                <div class="row-subtitle">{{ quote.opportunity_name or 'No linked opportunity' }}</div>
+              </td>
+              <td>
+                <div class="row-title">{{ quote.customer_name }}</div>
+                <div class="row-subtitle"><a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=quote.customer_id) }}">Customer 360</a></div>
+              </td>
+              <td>{{ quote.status }}</td>
+              <td>
+                <div class="row-title">{{ quote.amount|currency }}</div>
+                <div class="row-subtitle">Est cost {{ quote.estimated_cost|currency }}</div>
+                <div class="row-subtitle">Target margin {{ quote.target_margin_pct }}%</div>
+              </td>
+              <td>
+                <div class="row-subtitle">Signed: {{ quote.signed_date or 'Not signed' }}</div>
+                <div class="row-subtitle">Issued: {{ quote.issue_date or 'Not set' }}</div>
+                <div class="row-subtitle">Expires: {{ quote.expiration_date or 'Not set' }}</div>
+                <div class="row-subtitle">Deposit {{ quote.deposit_received|currency }} / {{ quote.deposit_required|currency }}</div>
+              </td>
+              <td>
+                <div class="table-actions">
+                  <a class="mini-link" href="{{ url_for('crm.quotes_edit', quote_id=quote.id) }}">Edit</a>
+                  <a class="mini-link" href="{{ url_for('crm.quotes_contract', quote_id=quote.id) }}">Contract</a>
+                  <a class="mini-link" href="{{ url_for('crm.jobs_create', quote_id=quote.id) }}">Create job</a>
+                  <form method="post" action="{{ url_for('crm.quotes_delete', quote_id=quote.id) }}" onsubmit="return confirm('Delete this quote?');">
+                    <button class="mini-link danger-link" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No quotes found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

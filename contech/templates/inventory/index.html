@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Inventory{% endblock %}
+{% block kicker %}Operations workflow{% endblock %}
+{% block page_title %}Inventory{% endblock %}
+{% block page_description %}Track branch stock, job reservations, vendor linkage, and shortage follow-up in one place.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.purchasing_index') }}">Purchasing queue</a>
+  {% if current_user and current_user['role_name'] in ('admin', 'inventory') %}
+    <a class="action-button accent" href="{{ url_for('crm.inventory_create') }}">New inventory item</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="category">
+        <option value="">All categories</option>
+        {% for category in categories %}
+          <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+        {% endfor %}
+      </select>
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in statuses %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter</button>
+      {% if selected_category or selected_status %}
+        <a class="action-button" href="{{ url_for('crm.inventory_index') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-8">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Vendor</th>
+              <th>Available</th>
+              <th>Reserved</th>
+              <th>Pricing</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in inventory_items %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ item.item_name }}</div>
+                  <div class="row-subtitle">{{ item.sku }} / {{ item.category }}</div>
+                </td>
+                <td>{{ item.vendor_name or 'No vendor linked' }}</td>
+                <td>
+                  <div class="row-title">{{ item.available_qty|round(2) }}</div>
+                  <div class="row-subtitle">{{ item.stock_on_hand|round(2) }} on hand</div>
+                </td>
+                <td>
+                  <div class="row-title">{{ item.reserved_qty|round(2) }}</div>
+                  <div class="row-subtitle">{{ item.reservation_count }} job lines</div>
+                </td>
+                <td>
+                  <div class="row-subtitle">Cost {{ item.unit_cost|currency }}</div>
+                  <div class="row-subtitle">Price {{ item.unit_price|currency }}</div>
+                </td>
+                <td>
+                  <span class="status-pill {% if item.status in ('Low', 'Out of stock') %}danger{% elif item.status in ('Watch', 'Cost spike') %}warning{% else %}success{% endif %}">{{ item.status }}</span>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    {% if current_user and current_user['role_name'] in ('admin', 'inventory') %}
+                      <a class="mini-link" href="{{ url_for('crm.inventory_edit', item_id=item.id) }}">Edit</a>
+                      <form method="post" action="{{ url_for('crm.inventory_delete', item_id=item.id) }}" onsubmit="return confirm('Delete this inventory item?');">
+                        <button class="mini-link danger-link" type="submit">Delete</button>
+                      </form>
+                    {% else %}
+                      <span class="row-subtitle">View only</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7">No inventory items match the current filters.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Inventory snapshot</h3>
+          <p class="panel-copy">Live totals from stocked and reserved material.</p>
+        </div>
+      </div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <span class="metric-label">Items</span>
+          <strong>{{ inventory_summary.items }}</strong>
+          <div class="row-subtitle">Tracked SKUs</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Available</span>
+          <strong>{{ inventory_summary.available|round(2) }}</strong>
+          <div class="row-subtitle">Unreserved stock</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Reserved</span>
+          <strong>{{ inventory_summary.reserved|round(2) }}</strong>
+          <div class="row-subtitle">Committed to jobs</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Requests</span>
+          <strong>{{ inventory_summary.purchase_requests }}</strong>
+          <div class="row-subtitle">Open purchasing follow-up</div>
+        </div>
+      </div>
+      <div class="top-gap">
+        <div class="card-header">
+          <div>
+            <h3 class="panel-title">Purchasing queue</h3>
+            <p class="panel-copy">Auto-generated and seeded requests waiting on inventory follow-up.</p>
+          </div>
+        </div>
+        <div class="schedule-stack">
+          {% for request in purchase_requests %}
+            <div class="schedule-card">
+              <div class="row-title">{{ request.title }}</div>
+              <div class="row-subtitle">{{ request.vendor_name or 'Unassigned vendor' }}</div>
+              <div class="row-subtitle">{{ request.customer_name or 'No customer linked' }}</div>
+              <div class="row-subtitle">{{ request.job_name or 'No job linked' }}</div>
+              <div class="row-subtitle">{{ request.details }}</div>
+              <div class="row-subtitle">Owner {{ request.owner_name }} / Need by {{ request.needed_by or 'Not set' }}</div>
+              <div class="row-subtitle">{{ request.item_name or 'No item linked' }}{% if request.sku %} / {{ request.sku }}{% endif %}</div>
+              <div class="row-subtitle">Req {{ request.requested_qty if request.requested_qty is not none else 0 }} / Ord {{ request.ordered_qty|round(2) }} / Rec {{ request.received_qty|round(2) }}</div>
+              <div class="row-subtitle">{{ request.vendor_notes }}</div>
+              <div class="chips top-gap">
+                <span class="status-pill {% if request.priority == 'high' %}danger{% elif request.priority == 'medium' %}warning{% else %}success{% endif %}">{{ request.priority|capitalize }}</span>
+                <span class="status-pill">{{ request.status }}</span>
+              </div>
+              {% if current_user and current_user['role_name'] in ('admin', 'dispatch', 'inventory', 'accounting') %}
+                <div class="top-gap">
+                  <a class="mini-link" href="{{ url_for('crm.purchasing_edit', request_id=request.id) }}">Edit request</a>
+                </div>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="row-subtitle">No purchase requests are queued.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+  </section>
+{% endblock %}

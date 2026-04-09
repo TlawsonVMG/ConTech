@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ConTech | Construction CRM Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">Roofing + Siding CRM</p>
+          <div class="brand-lockup">
+            <div class="brand-mark">CT</div>
+            <div>
+              <h1>ConTech</h1>
+              <p>Estimate, dispatch, inventory, and cash in one place.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <p class="sidebar-label">Workspace</p>
+          <div id="nav-list" class="nav-list"></div>
+        </div>
+
+        <div class="sidebar-section stack">
+          <div class="sidebar-card">
+            <p class="sidebar-label">Today</p>
+            <div class="sidebar-stat">
+              <strong>14</strong>
+              <span>deliveries scheduled</span>
+            </div>
+            <div class="sidebar-stat">
+              <strong>18</strong>
+              <span>quotes waiting for a decision</span>
+            </div>
+            <div class="sidebar-stat">
+              <strong>6</strong>
+              <span>inventory alerts blocking margin</span>
+            </div>
+          </div>
+
+          <div class="sidebar-card accent-card">
+            <p class="sidebar-label">Design anchor</p>
+            <p class="sidebar-copy">
+              A clean block layout with soft reds, simple cards, and job-first
+              workflows users can recognize immediately.
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p id="view-kicker" class="eyebrow">Daily control center</p>
+            <h2 id="view-title">Dashboard</h2>
+            <p id="view-description" class="view-description"></p>
+          </div>
+
+          <div class="topbar-actions">
+            <button class="action-button" data-jump="sales">New quote</button>
+            <button class="action-button" data-jump="dispatch">
+              Schedule delivery
+            </button>
+            <button class="action-button accent" data-jump="accounting">
+              Log payment
+            </button>
+          </div>
+        </header>
+
+        <section id="overview-strip" class="overview-strip"></section>
+        <section id="view-root" class="view-root"></section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Quote{% else %}Edit Quote{% endif %}{% endblock %}
+{% block kicker %}Sales documents{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Quote{% else %}Edit Quote{% endif %}{% endblock %}
+{% block page_description %}Create a streamlined contract record with fixed-margin pricing that can move directly into production.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.quotes_index') }}">Back to quotes</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Linked opportunity</span>
+      <select name="opportunity_id">
+        <option value="">No linked opportunity</option>
+        {% for opportunity in opportunities %}
+          <option value="{{ opportunity.id }}" {% if quote.opportunity_id|string == opportunity.id|string %}selected{% endif %}>{{ opportunity.name }} / {{ opportunity.subtitle }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Customer</span>
+      <select name="customer_id">
+        <option value="">Select customer</option>
+        {% for customer in customers %}
+          <option value="{{ customer.id }}" {% if quote.customer_id|string == customer.id|string %}selected{% endif %}>{{ customer.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Quote number</span>
+      <input type="text" name="quote_number" value="{{ quote.quote_number }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Quote title</span>
+      <input type="text" name="option_name" value="{{ quote.option_name }}" required />
+    </label>
+
+    <label class="form-field span-full">
+      <span>Description / scope</span>
+      <input type="text" name="description" value="{{ quote.description }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Amount</span>
+      <input type="number" name="amount" min="0" step="0.01" value="{{ quote.amount if quote.amount is not none else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Estimated cost</span>
+      <input type="number" name="estimated_cost" min="0" step="0.01" value="{{ quote.estimated_cost if quote.estimated_cost is not none else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Required deposit</span>
+      <input type="number" name="deposit_required" min="0" step="0.01" value="{{ quote.deposit_required if quote.deposit_required is not none else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Received deposit</span>
+      <input type="number" name="deposit_received" min="0" step="0.01" value="{{ quote.deposit_received if quote.deposit_received is not none else '0' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Status</span>
+      <select name="status">
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if quote.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Issue date</span>
+      <input type="date" name="issue_date" value="{{ quote.issue_date or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Signed date</span>
+      <input type="date" name="signed_date" value="{{ quote.signed_date or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Expiration date</span>
+      <input type="date" name="expiration_date" value="{{ quote.expiration_date or '' }}" />
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create quote{% else %}Save quote{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

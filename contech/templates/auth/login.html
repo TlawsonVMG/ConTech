@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ConTech | Sign In</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <link rel="stylesheet" href="{{ url_for('web.styles') }}" />
+  </head>
+  <body class="crm-body">
+    <div class="backdrop"></div>
+    <main class="auth-shell">
+      <section class="auth-panel">
+        <p class="eyebrow">Single-Branch CRM</p>
+        <h1 class="hero-title">Sign in to ConTech.</h1>
+        <p class="hero-subtitle">
+          This environment now includes role-aware access and real CRUD workflows for Customers, Leads, and Opportunities.
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <form class="form-grid" method="post">
+          {{ csrf_input() }}
+          <label class="form-field">
+            <span>Username</span>
+            <input type="text" name="username" autocomplete="username" required />
+          </label>
+          <label class="form-field">
+            <span>Password</span>
+            <input type="password" name="password" autocomplete="current-password" required />
+          </label>
+          <button class="action-button accent wide-button" type="submit">Sign in</button>
+        </form>
+      </section>
+
+      {% if config.SEED_DEMO_DATA %}
+        <aside class="auth-panel auth-side">
+          <p class="sidebar-label">Demo accounts</p>
+          <div class="info-list">
+            <div class="info-row">
+              <div class="info-row-main">
+                <div class="row-title">Admin</div>
+                <div class="row-subtitle"><code>admin</code> / <code>ConTech!2026</code></div>
+              </div>
+            </div>
+            <div class="info-row">
+              <div class="info-row-main">
+                <div class="row-title">Sales</div>
+                <div class="row-subtitle"><code>micah</code> / <code>Roofing!2026</code></div>
+              </div>
+            </div>
+            <div class="info-row">
+              <div class="info-row-main">
+                <div class="row-title">Accounting</div>
+                <div class="row-subtitle"><code>accounting</code> / <code>Ledger!2026</code></div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      {% endif %}
+    </main>
+    <script>
+      (function () {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (!token) return;
+        document.querySelectorAll('form').forEach((form) => {
+          const method = (form.getAttribute('method') || 'get').toLowerCase();
+          if (method !== 'post' || form.querySelector('input[name="csrf_token"]')) return;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          input.value = token;
+          form.prepend(input);
+        });
+      })();
+    </script>
+  </body>
+</html>

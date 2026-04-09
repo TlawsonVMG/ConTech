@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | {% if mode == 'create' %}New Invoice{% else %}Edit Invoice{% endif %}{% endblock %}
+{% block kicker %}Billing workflow{% endblock %}
+{% block page_title %}{% if mode == 'create' %}New Invoice{% else %}Edit Invoice{% endif %}{% endblock %}
+{% block page_description %}Create billing against a job and keep the remaining balance and status aligned.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.invoices_index') }}">Back to invoices</a>
+{% endblock %}
+
+{% block content %}
+  <form class="card form-grid two-column-form" method="post">
+    <label class="form-field">
+      <span>Quote</span>
+      <select name="quote_id">
+        <option value="">No linked quote</option>
+        {% for quote in quotes %}
+          <option value="{{ quote.id }}" {% if invoice.quote_id|string == quote.id|string %}selected{% endif %}>{{ quote.quote_number }} / {{ quote.customer_name }} / {{ quote.option_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Job</span>
+      <select name="job_id">
+        <option value="">No linked job</option>
+        {% for job in jobs %}
+          <option value="{{ job.id }}" {% if invoice.job_id|string == job.id|string %}selected{% endif %}>{{ job.name }} / {{ job.customer_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Customer</span>
+      <select name="customer_id">
+        <option value="">Select customer</option>
+        {% for customer in customers %}
+          <option value="{{ customer.id }}" {% if invoice.customer_id|string == customer.id|string %}selected{% endif %}>{{ customer.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Change order</span>
+      <select name="change_order_id">
+        <option value="">No linked change order</option>
+        {% for change_order in change_orders %}
+          <option value="{{ change_order.id }}" {% if invoice.change_order_id|string == change_order.id|string %}selected{% endif %}>{{ change_order.change_number }} / {{ change_order.customer_name }} / {{ change_order.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Billing type</span>
+      <select name="billing_type">
+        {% for billing_type in billing_type_options %}
+          <option value="{{ billing_type }}" {% if invoice.billing_type == billing_type %}selected{% endif %}>{{ billing_type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Status</span>
+      <select name="status">
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if invoice.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="form-field">
+      <span>Invoice number</span>
+      <input type="text" name="invoice_number" value="{{ invoice.invoice_number }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Application number</span>
+      <input type="text" name="application_number" value="{{ invoice.application_number or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Amount</span>
+      <input type="number" name="amount" min="0" step="0.01" value="{{ invoice.amount if invoice.amount is not none else '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Issued date</span>
+      <input type="date" name="issued_date" value="{{ invoice.issued_date or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Due date</span>
+      <input type="date" name="due_date" value="{{ invoice.due_date or '' }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Billing period start</span>
+      <input type="date" name="billing_period_start" value="{{ invoice.billing_period_start or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Billing period end</span>
+      <input type="date" name="billing_period_end" value="{{ invoice.billing_period_end or '' }}" />
+    </label>
+
+    <label class="form-field">
+      <span>Retainage %</span>
+      <input type="number" name="retainage_pct" min="0" max="100" step="0.01" value="{{ invoice.retainage_pct if invoice.retainage_pct is not none else 0 }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Retainage held</span>
+      <input type="number" name="retainage_held" min="0" step="0.01" value="{{ invoice.retainage_held if invoice.retainage_held is not none else 0 }}" required />
+    </label>
+
+    <label class="form-field">
+      <span>Remaining balance</span>
+      <input type="number" name="remaining_balance" min="0" step="0.01" value="{{ invoice.remaining_balance if invoice.remaining_balance is not none else '' }}" required />
+    </label>
+
+    <div class="form-actions span-full">
+      <button class="action-button accent" type="submit">{% if mode == 'create' %}Create invoice{% else %}Save invoice{% endif %}</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Record Payment{% endblock %}
+{% block kicker %}Billing workflow{% endblock %}
+{% block page_title %}Record Payment{% endblock %}
+{% block page_description %}Apply a payment to the invoice and update the remaining balance safely.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.invoices_index') }}">Back to invoices</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <div class="info-list">
+      <div class="info-row">
+        <div class="info-row-main">
+          <div class="metric-label">Invoice</div>
+          <div class="row-title">{{ invoice.invoice_number }}</div>
+        </div>
+        <span class="status-pill">{{ invoice.status }}</span>
+      </div>
+      <div class="stat-row">
+        <span>Invoice amount</span>
+        <strong>{{ invoice.amount|currency }}</strong>
+      </div>
+      <div class="stat-row">
+        <span>Remaining balance</span>
+        <strong>{{ invoice.remaining_balance|currency }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <form class="card form-grid top-gap" method="post">
+    <div class="customer-grid">
+      <label class="form-field">
+        <span>Payment amount</span>
+        <input type="number" name="payment_amount" min="0.01" max="{{ invoice.remaining_balance }}" step="0.01" value="{{ payment.payment_amount }}" required />
+      </label>
+      <label class="form-field">
+        <span>Payment date</span>
+        <input type="date" name="payment_date" value="{{ payment.payment_date }}" required />
+      </label>
+      <label class="form-field">
+        <span>Method</span>
+        <select name="payment_method">
+          {% for method in payment_methods %}
+            <option value="{{ method }}" {% if payment.payment_method == method %}selected{% endif %}>{{ method }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form-field">
+        <span>Deposit account</span>
+        <select name="deposit_account_id" required>
+          <option value="">Select account</option>
+          {% for account in deposit_accounts %}
+            <option value="{{ account.id }}" {% if payment.deposit_account_id|string == account.id|string %}selected{% endif %}>{{ account.account_name }} / {{ account.account_type }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form-field span-full">
+        <span>Reference</span>
+        <input type="text" name="reference_number" value="{{ payment.reference_number }}" placeholder="Check number, ACH trace, wire ref" />
+      </label>
+    </div>
+    <label class="form-field">
+      <span>Posting notes</span>
+      <textarea name="notes" rows="4">{{ payment.notes }}</textarea>
+    </label>
+    <div class="form-actions">
+      <button class="action-button accent" type="submit">Apply payment</button>
+    </div>
+  </form>
+
+  <section class="card top-gap">
+    <div class="card-header">
+      <div>
+        <h3 class="panel-title">Payment History</h3>
+        <p class="panel-copy">Audit trail for posted cash against this invoice.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Method</th>
+            <th>Account</th>
+            <th>Posted by</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in payment_history %}
+            <tr>
+              <td>
+                <div class="row-title">{{ entry.payment_date }}</div>
+                <div class="row-subtitle">{{ entry.reference_number or 'No reference' }}</div>
+              </td>
+              <td>{{ entry.payment_amount|currency }}</td>
+              <td>
+                <div class="row-subtitle">{{ entry.payment_method }}</div>
+                <div class="row-subtitle">{{ entry.notes or 'No notes' }}</div>
+              </td>
+              <td>{{ entry.account_name or 'No account linked' }}</td>
+              <td>{{ entry.posted_by }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">No payment history has been posted for this invoice yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
