@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}ConTech Customer Portal{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <link rel="stylesheet" href="{{ url_for('web.styles') }}" />
+  </head>
+  <body class="crm-body">
+    <div class="backdrop"></div>
+    <div class="crm-shell">
+      <aside class="crm-sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">Customer Portal</p>
+          <div class="brand-lockup">
+            <div class="brand-mark">CT</div>
+            <div>
+              <h1>ConTech</h1>
+              <p>Project access for roofing and siding customers.</p>
+            </div>
+          </div>
+        </div>
+
+        <nav class="sidebar-section">
+          <p class="sidebar-label">Portal</p>
+          <div class="nav-list">
+            <a class="nav-button {% if request.endpoint == 'portal.dashboard' %}active{% endif %}" href="{{ url_for('portal.dashboard') }}">
+              <span class="nav-icon">HM</span>
+              <span>
+                <span class="nav-title">Home</span>
+                <span class="nav-copy">Project summary</span>
+              </span>
+            </a>
+            <a class="nav-button {% if request.endpoint == 'portal.password' %}active{% endif %}" href="{{ url_for('portal.password') }}">
+              <span class="nav-icon">PW</span>
+              <span>
+                <span class="nav-title">Password</span>
+                <span class="nav-copy">Account security</span>
+              </span>
+            </a>
+          </div>
+        </nav>
+
+        {% if current_customer_portal_user %}
+          <div class="sidebar-section stack">
+            <div class="sidebar-card">
+              <p class="sidebar-label">Signed in</p>
+              <div class="row-title">{{ current_customer_portal_user.full_name }}</div>
+              <div class="row-subtitle">{{ current_customer_portal_user.email }}</div>
+              <div class="chips top-gap">
+                <span class="status-pill">{{ current_customer_portal_user.customer_name }}</span>
+              </div>
+              <form class="top-gap" method="post" action="{{ url_for('portal.logout') }}">
+                {{ csrf_input() }}
+                <button class="action-button wide-button" type="submit">Sign out</button>
+              </form>
+            </div>
+          </div>
+        {% endif %}
+      </aside>
+
+      <main class="crm-main">
+        <header class="crm-header">
+          <div>
+            <p class="eyebrow">{% block kicker %}Customer Portal{% endblock %}</p>
+            <h2 class="crm-title">{% block page_title %}Project Summary{% endblock %}</h2>
+            <p class="view-description">{% block page_description %}{% endblock %}</p>
+          </div>
+          <div class="crm-header-actions">
+            {% block page_actions %}{% endblock %}
+          </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      (function () {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (!token) return;
+        document.querySelectorAll('form').forEach((form) => {
+          const method = (form.getAttribute('method') || 'get').toLowerCase();
+          if (method !== 'post' || form.querySelector('input[name="csrf_token"]')) return;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          input.value = token;
+          form.prepend(input);
+        });
+      })();
+    </script>
+  </body>
+</html>

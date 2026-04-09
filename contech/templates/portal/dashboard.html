@@ -1,0 +1,312 @@
+{% extends "portal/base.html" %}
+
+{% block title %}ConTech Portal | {{ customer.name }}{% endblock %}
+{% block kicker %}Customer Portal{% endblock %}
+{% block page_title %}{{ customer.name }}{% endblock %}
+{% block page_description %}Secure project summary for quotes, jobs, delivery updates, invoices, documents, and customer messages.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="#message-team">Message ConTech</a>
+  <a class="action-button accent" href="{{ url_for('portal.password') }}">Change password</a>
+{% endblock %}
+
+{% block content %}
+  <section class="overview-strip">
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Quotes</div>
+        <div class="metric-value">{{ summary.quotes }}</div>
+      </div>
+      <span class="metric-trend">Sales documents</span>
+    </article>
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Jobs</div>
+        <div class="metric-value">{{ summary.jobs }}</div>
+      </div>
+      <span class="metric-trend">Production records</span>
+    </article>
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Invoices</div>
+        <div class="metric-value">{{ summary.invoices }}</div>
+      </div>
+      <span class="metric-trend">Billing records</span>
+    </article>
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Open Balance</div>
+        <div class="metric-value">{{ summary.open_balance|currency }}</div>
+      </div>
+      <span class="metric-trend">Current account balance</span>
+    </article>
+  </section>
+
+  <section class="view-grid">
+    <article class="card hero-card span-8">
+      <p class="module-tag">{{ customer.segment }} account</p>
+      <h3 class="hero-title">Your project information stays tied to your ConTech account.</h3>
+      <p class="hero-subtitle">
+        {{ customer.primary_contact or 'No primary contact on file' }}
+        {% if customer.phone %} / {{ customer.phone }}{% endif %}
+        {% if customer.email %} / {{ customer.email }}{% endif %}
+      </p>
+      <div class="customer-grid top-gap">
+        <div class="schedule-card">
+          <div class="row-title">Service address</div>
+          <div class="row-subtitle">{{ customer.service_address }}</div>
+        </div>
+        <div class="schedule-card">
+          <div class="row-title">Trade mix</div>
+          <div class="row-subtitle">{{ customer.trade_mix or 'Not set yet' }}</div>
+        </div>
+        <div class="schedule-card">
+          <div class="row-title">Account status</div>
+          <div class="chips top-gap">
+            <span class="status-pill">{{ customer.status }}</span>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card span-4">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Account contacts</h3>
+          <p class="panel-copy">People ConTech has listed on your account.</p>
+        </div>
+      </div>
+      <div class="info-list">
+        {% for contact in contacts %}
+          <div class="info-row">
+            <div class="info-row-main">
+              <div class="row-title">{{ contact.full_name }}</div>
+              <div class="row-subtitle">{{ contact.role_label }}</div>
+              <div class="row-subtitle">{{ contact.email or 'No email' }}{% if contact.phone %} / {{ contact.phone }}{% endif %}</div>
+            </div>
+            {% if contact.is_primary %}
+              <span class="status-pill success">Primary</span>
+            {% endif %}
+          </div>
+        {% else %}
+          <p class="panel-copy">No account contacts have been saved yet.</p>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-6">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Quotes</h3>
+          <p class="panel-copy">Your sales documents and approval status.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Quote</th>
+              <th>Status</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for quote in quotes %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ quote.quote_number }}</div>
+                  <div class="row-subtitle">{{ quote.option_name }}</div>
+                  <div class="row-subtitle">{{ quote.description }}</div>
+                </td>
+                <td><span class="status-pill">{{ quote.status }}</span></td>
+                <td>{{ quote.amount|currency }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="3">No quotes are visible yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-6">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Jobs</h3>
+          <p class="panel-copy">Production and crew scheduling status.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Status</th>
+              <th>Schedule</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in jobs %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ job.name }}</div>
+                  <div class="row-subtitle">{{ job.scope }}</div>
+                </td>
+                <td><span class="status-pill">{{ job.status }}</span></td>
+                <td>
+                  <div class="row-subtitle">{{ job.scheduled_start or 'Not scheduled' }}</div>
+                  <div class="row-subtitle">{{ job.crew_name or 'Crew pending' }}</div>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="3">No jobs are visible yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-6">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Deliveries</h3>
+          <p class="panel-copy">Delivery windows and dispatch notes.</p>
+        </div>
+      </div>
+      <div class="info-list">
+        {% for delivery in deliveries %}
+          <div class="info-row">
+            <div class="info-row-main">
+              <div class="row-title">{{ delivery.route_name }} / {{ delivery.job_name }}</div>
+              <div class="row-subtitle">{{ delivery.eta }} / {{ delivery.truck_name }}</div>
+              <div class="row-subtitle">{{ delivery.notes }}</div>
+            </div>
+            <span class="status-pill">{{ delivery.status }}</span>
+          </div>
+        {% else %}
+          <p class="panel-copy">No delivery updates are visible yet.</p>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="card span-6">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Invoices</h3>
+          <p class="panel-copy">Billing status and open balances.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Status</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for invoice in invoices %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ invoice.invoice_number }}</div>
+                  <div class="row-subtitle">{{ invoice.billing_type }}{% if invoice.application_number %} / {{ invoice.application_number }}{% endif %}</div>
+                  <div class="row-subtitle">Due {{ invoice.due_date }}</div>
+                </td>
+                <td><span class="status-pill">{{ invoice.status }}</span></td>
+                <td>
+                  <div>{{ invoice.remaining_balance|currency }}</div>
+                  <div class="row-subtitle">Invoice {{ invoice.amount|currency }}</div>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="3">No invoices are visible yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Documents</h3>
+          <p class="panel-copy">Job packet files that ConTech has made visible on your account.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Status</th>
+              <th>File</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for document in documents %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ document.title }}</div>
+                  <div class="row-subtitle">{{ document.record_type }} / {{ document.job_name }}</div>
+                  <div class="row-subtitle">{{ document.captured_at }}</div>
+                </td>
+                <td><span class="status-pill">{{ document.status }}</span></td>
+                <td>
+                  {% if document.original_filename %}
+                    <a class="mini-link" href="{{ url_for('portal.document_file', document_id=document.id) }}">Download</a>
+                  {% else %}
+                    <span class="row-subtitle">{{ document.file_reference or 'No file attached' }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="3">No documents are visible yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-5" id="message-team">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Message ConTech</h3>
+          <p class="panel-copy">Send project questions directly into your account timeline.</p>
+        </div>
+      </div>
+      <form class="form-grid" method="post" action="{{ url_for('portal.messages_create') }}">
+        {{ csrf_input() }}
+        <label class="form-field">
+          <span>Subject</span>
+          <input type="text" name="subject" required />
+        </label>
+        <label class="form-field">
+          <span>Message</span>
+          <textarea name="message_body" rows="5" required></textarea>
+        </label>
+        <button class="action-button accent" type="submit">Send message</button>
+      </form>
+
+      <div class="info-list top-gap">
+        {% for message in messages %}
+          <div class="info-row">
+            <div class="info-row-main">
+              <div class="row-title">{{ message.subject }}</div>
+              <div class="row-subtitle">{{ message.submitted_at }} / {{ message.status }}</div>
+              <div class="row-subtitle">{{ message.message_body }}</div>
+            </div>
+          </div>
+        {% else %}
+          <p class="panel-copy">No portal messages have been sent yet.</p>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+{% endblock %}

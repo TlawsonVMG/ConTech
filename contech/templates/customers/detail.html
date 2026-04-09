@@ -121,6 +121,153 @@
     <article class="card span-7">
       <div class="card-header">
         <div>
+          <h3 class="panel-title">Customer Portal Access</h3>
+          <p class="panel-copy">Invite-only customer logins tied directly to this account. Customers only see their own records.</p>
+        </div>
+        <a class="mini-link" href="{{ url_for('portal.login') }}" target="_blank" rel="noreferrer">Open portal</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Portal user</th>
+              <th>Status</th>
+              <th>Reset / update</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for portal_user in portal_users %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ portal_user.full_name }}</div>
+                  <div class="row-subtitle">{{ portal_user.email }}</div>
+                  <div class="row-subtitle">Created {{ portal_user.created_at }}{% if portal_user.last_login_at %} / Last login {{ portal_user.last_login_at }}{% endif %}</div>
+                </td>
+                <td>
+                  {% if portal_user.is_active %}
+                    <span class="status-pill success">Active</span>
+                  {% else %}
+                    <span class="status-pill danger">Inactive</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <form class="form-grid compact-form" method="post" action="{{ url_for('crm.customer_portal_users_update', portal_user_id=portal_user.id) }}">
+                    {{ csrf_input() }}
+                    <input type="hidden" name="full_name" value="{{ portal_user.full_name }}" />
+                    <input type="hidden" name="email" value="{{ portal_user.email }}" />
+                    <label class="form-field">
+                      <span>New password</span>
+                      <input type="password" name="password" placeholder="Leave blank to keep current" />
+                    </label>
+                    <label class="form-field checkbox-field">
+                      <input type="checkbox" name="is_active" {% if portal_user.is_active %}checked{% endif %} />
+                      <span>Active</span>
+                    </label>
+                    <button class="mini-link" type="submit">Update access</button>
+                  </form>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="3">No customer portal users have been created yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Create portal login</h3>
+          <p class="panel-copy">Use this for customers who should view their account online.</p>
+        </div>
+      </div>
+      <form class="form-grid" method="post" action="{{ url_for('crm.customer_portal_users_create', customer_id=customer.id) }}">
+        {{ csrf_input() }}
+        <label class="form-field">
+          <span>Full name</span>
+          <input type="text" name="full_name" value="{{ customer.primary_contact or '' }}" required />
+        </label>
+        <label class="form-field">
+          <span>Email</span>
+          <input type="email" name="email" value="{{ customer.email or '' }}" required />
+        </label>
+        <label class="form-field">
+          <span>Temporary password</span>
+          <input type="password" name="password" minlength="10" required />
+        </label>
+        <label class="form-field checkbox-field span-full">
+          <input type="checkbox" name="is_active" checked />
+          <span>Allow this customer to sign in.</span>
+        </label>
+        <div class="form-actions">
+          <button class="action-button accent" type="submit">Create portal access</button>
+        </div>
+      </form>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-12">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Customer Portal Messages</h3>
+          <p class="panel-copy">Messages submitted from the customer portal are stored on this account.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Message</th>
+              <th>Submitted by</th>
+              <th>Status</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for portal_message in portal_messages %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ portal_message.subject }}</div>
+                  <div class="row-subtitle">{{ portal_message.message_body }}</div>
+                  <div class="row-subtitle">{{ portal_message.submitted_at }}</div>
+                </td>
+                <td>
+                  <div class="row-title">{{ portal_message.portal_user_name or 'Portal user' }}</div>
+                  <div class="row-subtitle">{{ portal_message.portal_user_email or 'No email' }}</div>
+                </td>
+                <td><span class="status-pill">{{ portal_message.status }}</span></td>
+                <td>
+                  <form class="form-grid compact-form" method="post" action="{{ url_for('crm.portal_messages_update_status', message_id=portal_message.id) }}">
+                    {{ csrf_input() }}
+                    <select name="status">
+                      {% for status in portal_message_statuses %}
+                        <option value="{{ status }}" {% if portal_message.status == status %}selected{% endif %}>{{ status|replace('_', ' ')|title }}</option>
+                      {% endfor %}
+                    </select>
+                    <input type="text" name="internal_notes" placeholder="Internal note" />
+                    <button class="mini-link" type="submit">Update</button>
+                  </form>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4">No portal messages have been submitted yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
           <h3 class="panel-title">Account Contacts</h3>
           <p class="panel-copy">Commercial-friendly contact stack for operations, billing, and approvals.</p>
         </div>

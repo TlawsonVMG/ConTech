@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, send_from_directory, url_for
+from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 
 from ..auth import login_required, roles_required
@@ -72,6 +73,7 @@ JOB_DOCUMENT_TYPES = ("Photo", "Permit", "Inspection", "Material Receipt", "Cont
 JOB_DOCUMENT_STATUSES = ("Logged", "Pending Review", "Approved", "Closed")
 INVOICE_BILLING_TYPES = ("Standard", "Deposit", "Progress", "Change Order", "Retainage Release", "Final")
 JOB_DOCUMENT_UPLOAD_EXTENSIONS = (".jpg", ".jpeg", ".png", ".pdf", ".txt", ".csv", ".doc", ".docx", ".xls", ".xlsx")
+PORTAL_MESSAGE_STATUSES = ("new", "in_review", "closed")
 
 
 def _format_currency(value):
@@ -219,6 +221,35 @@ def _validate_customer_contact_form(data):
         errors.append("Contact role is required.")
     if not data["phone"] and not data["email"]:
         errors.append("Add at least a phone number or email for the contact.")
+    return errors
+
+
+def _portal_access_form_data(form):
+    return {
+        "full_name": form.get("full_name", "").strip(),
+        "email": form.get("email", "").strip().lower(),
+        "password": form.get("password", ""),
+        "is_active": _checkbox_value(form, "is_active"),
+    }
+
+
+def _validate_portal_access_form(data, require_password=True, exclude_user_id=None):
+    errors = []
+    if not data["full_name"]:
+        errors.append("Portal contact name is required.")
+    if not data["email"] or "@" not in data["email"]:
+        errors.append("A valid portal email is required.")
+    if require_password and len(data["password"]) < 10:
+        errors.append("Portal password must be at least 10 characters.")
+    if data["email"]:
+        query = "SELECT id FROM customer_portal_users WHERE email = ?"
+        params = [data["email"]]
+        if exclude_user_id is not None:
+            query += " AND id != ?"
+            params.append(exclude_user_id)
+        existing = get_db().execute(query, params).fetchone()
+        if existing:
+            errors.append("That portal email is already tied to another customer portal user.")
     return errors
 
 
@@ -809,6 +840,10 @@ def _fetch_customer(customer_id):
 
 def _fetch_customer_contact(contact_id):
     return get_db().execute("SELECT * FROM customer_contacts WHERE id = ?", (contact_id,)).fetchone()
+
+
+def _fetch_customer_portal_user(portal_user_id):
+    return get_db().execute("SELECT * FROM customer_portal_users WHERE id = ?", (portal_user_id,)).fetchone()
 
 
 def _fetch_lead(lead_id):
@@ -1465,6 +1500,27 @@ def customers_detail(customer_id):
         """,
         (customer_id,),
     ).fetchall()
+    portal_users = db.execute(
+        """
+        SELECT id, full_name, email, is_active, created_at, last_login_at
+        FROM customer_portal_users
+        WHERE customer_id = ?
+        ORDER BY is_active DESC, full_name
+        """,
+        (customer_id,),
+    ).fetchall()
+    portal_messages = db.execute(
+        """
+        SELECT pm.id, pm.subject, pm.message_body, pm.status, pm.submitted_at, pm.reviewed_at, pm.reviewed_by,
+               cpu.full_name AS portal_user_name, cpu.email AS portal_user_email
+        FROM portal_messages pm
+        LEFT JOIN customer_portal_users cpu ON cpu.id = pm.portal_user_id
+        WHERE pm.customer_id = ?
+        ORDER BY pm.submitted_at DESC, pm.id DESC
+        LIMIT 8
+        """,
+        (customer_id,),
+    ).fetchall()
 
     leads = db.execute(
         """
@@ -1602,6 +1658,8 @@ def customers_detail(customer_id):
         customer=customer,
         summary=summary,
         contacts=contacts,
+        portal_users=portal_users,
+        portal_messages=portal_messages,
         leads=leads,
         opportunities=opportunities,
         quotes=quotes,
@@ -1625,6 +1683,7 @@ def customers_detail(customer_id):
         integration_statuses=INTEGRATION_STATUSES,
         calendar_event_types=CALENDAR_EVENT_TYPES,
         calendar_statuses=CALENDAR_EVENT_STATUSES,
+        portal_message_statuses=PORTAL_MESSAGE_STATUSES,
     )
 
 
@@ -1982,6 +2041,138 @@ def customer_contacts_delete(contact_id):
     return redirect(url_for("crm.customers_detail", customer_id=contact["customer_id"]))
 
 
+@bp.post("/customers/<int:customer_id>/portal-users")
+@roles_required(*CRM_ROLES)
+def customer_portal_users_create(customer_id):
+    customer = _fetch_customer(customer_id)
+    if customer is None:
+        abort(404)
+
+    data = _portal_access_form_data(request.form)
+    errors = _validate_portal_access_form(data)
+    if errors:
+        for error in errors:
+            flash(error, "error")
+        return redirect(url_for("crm.customers_detail", customer_id=customer_id))
+
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO customer_portal_users (
+            branch_id, customer_id, email, password_hash, full_name, is_active, created_at, last_login_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            customer["branch_id"],
+            customer_id,
+            data["email"],
+            generate_password_hash(data["password"]),
+            data["full_name"],
+            data["is_active"],
+            datetime.now().strftime("%Y-%m-%d %H:%M"),
+            None,
+        ),
+    )
+    _create_activity(
+        customer_id,
+        "System",
+        g.user["full_name"] if g.get("user") else "System",
+        f"Portal access created: {data['full_name']}",
+        f"Customer portal login issued for {data['email']}.",
+    )
+    db.commit()
+    flash("Customer portal access created.", "success")
+    return redirect(url_for("crm.customers_detail", customer_id=customer_id))
+
+
+@bp.post("/customer-portal-users/<int:portal_user_id>/update")
+@roles_required(*CRM_ROLES)
+def customer_portal_users_update(portal_user_id):
+    portal_user = _fetch_customer_portal_user(portal_user_id)
+    if portal_user is None:
+        abort(404)
+
+    data = _portal_access_form_data(request.form)
+    require_password = bool(data["password"])
+    errors = _validate_portal_access_form(data, require_password=require_password, exclude_user_id=portal_user_id)
+    if errors:
+        for error in errors:
+            flash(error, "error")
+        return redirect(url_for("crm.customers_detail", customer_id=portal_user["customer_id"]))
+
+    db = get_db()
+    if data["password"]:
+        db.execute(
+            """
+            UPDATE customer_portal_users
+            SET full_name = ?, email = ?, password_hash = ?, is_active = ?
+            WHERE id = ?
+            """,
+            (
+                data["full_name"],
+                data["email"],
+                generate_password_hash(data["password"]),
+                data["is_active"],
+                portal_user_id,
+            ),
+        )
+        change_note = "Portal access updated and password reset."
+    else:
+        db.execute(
+            """
+            UPDATE customer_portal_users
+            SET full_name = ?, email = ?, is_active = ?
+            WHERE id = ?
+            """,
+            (data["full_name"], data["email"], data["is_active"], portal_user_id),
+        )
+        change_note = "Portal access updated."
+
+    _create_activity(
+        portal_user["customer_id"],
+        "System",
+        g.user["full_name"] if g.get("user") else "System",
+        f"Portal access updated: {data['full_name']}",
+        change_note,
+    )
+    db.commit()
+    flash(change_note, "success")
+    return redirect(url_for("crm.customers_detail", customer_id=portal_user["customer_id"]))
+
+
+@bp.post("/portal-messages/<int:message_id>/status")
+@roles_required(*ALL_APP_ROLES)
+def portal_messages_update_status(message_id):
+    message = get_db().execute("SELECT * FROM portal_messages WHERE id = ?", (message_id,)).fetchone()
+    if message is None:
+        abort(404)
+
+    status = request.form.get("status", "new").strip()
+    internal_notes = request.form.get("internal_notes", "").strip()
+    if status not in PORTAL_MESSAGE_STATUSES:
+        flash("Portal message status is invalid.", "error")
+        return redirect(url_for("crm.customers_detail", customer_id=message["customer_id"]))
+
+    db = get_db()
+    db.execute(
+        """
+        UPDATE portal_messages
+        SET status = ?, internal_notes = ?, reviewed_at = ?, reviewed_by = ?
+        WHERE id = ?
+        """,
+        (
+            status,
+            internal_notes,
+            datetime.now().strftime("%Y-%m-%d %H:%M"),
+            g.user["full_name"] if g.get("user") else "System",
+            message_id,
+        ),
+    )
+    db.commit()
+    flash("Portal message status updated.", "success")
+    return redirect(url_for("crm.customers_detail", customer_id=message["customer_id"]))
+
+
 @bp.route("/customers/new", methods=("GET", "POST"))
 @roles_required(*CRM_ROLES)
 def customers_create():
@@ -2112,11 +2303,19 @@ def customers_delete(customer_id):
         "emails": db.execute("SELECT COUNT(*) AS count FROM email_messages WHERE customer_id = ?", (customer_id,)).fetchone()["count"],
         "calendar": db.execute("SELECT COUNT(*) AS count FROM calendar_events WHERE customer_id = ?", (customer_id,)).fetchone()["count"],
         "contacts": db.execute("SELECT COUNT(*) AS count FROM customer_contacts WHERE customer_id = ?", (customer_id,)).fetchone()["count"],
+        "portal_users": db.execute(
+            "SELECT COUNT(*) AS count FROM customer_portal_users WHERE customer_id = ?",
+            (customer_id,),
+        ).fetchone()["count"],
+        "portal_messages": db.execute(
+            "SELECT COUNT(*) AS count FROM portal_messages WHERE customer_id = ?",
+            (customer_id,),
+        ).fetchone()["count"],
     }
 
     if any(dependencies.values()):
         flash(
-            "Customer cannot be deleted while linked CRM, field, operations, contact, note, task, email, or calendar records still exist.",
+            "Customer cannot be deleted while linked CRM, field, operations, contact, portal, note, task, email, or calendar records still exist.",
             "error",
         )
         return redirect(url_for("crm.customers_index"))

@@ -12,6 +12,7 @@ from .security import init_app as init_security
 from .routes.api import bp as api_bp
 from .routes.crm import bp as crm_bp
 from .routes.feedback import bp as feedback_bp
+from .routes.portal import bp as portal_bp
 from .routes.web import bp as web_bp
 
 
@@ -156,6 +157,7 @@ def create_app(test_config=None):
     app.register_blueprint(crm_bp)
     app.register_blueprint(web_bp)
     app.register_blueprint(feedback_bp)
+    app.register_blueprint(portal_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
 
     if not _is_database_admin_command():

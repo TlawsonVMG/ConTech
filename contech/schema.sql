@@ -10,6 +10,8 @@ DROP TABLE IF EXISTS activity_feed;
 DROP TABLE IF EXISTS feedback_submissions;
 DROP TABLE IF EXISTS auth_attempts;
 DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS portal_messages;
+DROP TABLE IF EXISTS customer_portal_users;
 DROP TABLE IF EXISTS customer_contacts;
 DROP TABLE IF EXISTS payroll_runs;
 DROP TABLE IF EXISTS employees;
@@ -89,6 +91,32 @@ CREATE TABLE customer_contacts (
     email TEXT,
     is_primary INTEGER NOT NULL DEFAULT 0,
     notes TEXT
+);
+
+CREATE TABLE customer_portal_users (
+    id INTEGER PRIMARY KEY,
+    branch_id INTEGER NOT NULL REFERENCES branches (id),
+    customer_id INTEGER NOT NULL REFERENCES customers (id),
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_login_at TEXT
+);
+
+CREATE TABLE portal_messages (
+    id INTEGER PRIMARY KEY,
+    branch_id INTEGER NOT NULL REFERENCES branches (id),
+    customer_id INTEGER NOT NULL REFERENCES customers (id),
+    portal_user_id INTEGER REFERENCES customer_portal_users (id),
+    submitted_at TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    message_body TEXT NOT NULL,
+    status TEXT NOT NULL,
+    internal_notes TEXT,
+    reviewed_at TEXT,
+    reviewed_by TEXT
 );
 
 CREATE TABLE auth_attempts (

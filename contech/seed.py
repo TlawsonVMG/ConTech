@@ -67,6 +67,39 @@ def seed_demo_data(db):
         customer_contacts,
     )
 
+    portal_users = [
+        (
+            1,
+            1,
+            1,
+            "denise@example.com",
+            generate_password_hash("Customer!2026"),
+            "Denise Morris",
+            1,
+            "2026-04-09 09:00",
+            None,
+        ),
+        (
+            2,
+            1,
+            2,
+            "board@aldercreekhoa.org",
+            generate_password_hash("Customer!2026"),
+            "Melissa Tran",
+            1,
+            "2026-04-09 09:10",
+            None,
+        ),
+    ]
+    db.executemany(
+        """
+        INSERT INTO customer_portal_users (
+            id, branch_id, customer_id, email, password_hash, full_name, is_active, created_at, last_login_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        portal_users,
+    )
+
     leads = [
         (1, 1, 1, "Referrals", "Roof replacement", "Quoted", "Micah", "2026-03-31", 22400, 0),
         (2, 1, 2, "Insurance agents", "Storm restoration", "Negotiation", "Ramon", "2026-03-30", 118000, 1),

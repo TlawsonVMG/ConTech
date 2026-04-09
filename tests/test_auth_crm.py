@@ -31,6 +31,13 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
             follow_redirects=True,
         )
 
+    def portal_login(self, email, password):
+        return self.client.post(
+            "/portal/login",
+            data={"email": email, "password": password},
+            follow_redirects=True,
+        )
+
     def test_admin_can_log_in_and_see_dashboard(self):
         response = self.login("admin", "ConTech!2026")
         workboard_response = self.client.get("/workboard")
@@ -51,14 +58,14 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ready")
         self.assertEqual(payload["database"]["engine"], "sqlite")
         self.assertTrue(payload["database"]["schema_current"])
-        self.assertEqual(payload["database"]["schema_version"], "2026.04.09.launch-baseline")
+        self.assertEqual(payload["database"]["schema_version"], "2026.04.09.customer-portal")
         self.assertEqual(payload["checks"]["database_connection"], "ok")
         self.assertTrue(payload["checks"]["uploads_writable"])
 
         with self.app.app_context():
             migration = get_db().execute(
                 "SELECT version FROM schema_migrations WHERE version = ?",
-                ("2026.04.09.launch-baseline",),
+                ("2026.04.09.customer-portal",),
             ).fetchone()
         self.assertIsNotNone(migration)
 
@@ -286,6 +293,57 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
         self.assertIsNotNone(contact_row)
         self.assertIsNotNone(email_row)
         self.assertIsNotNone(event_row)
+
+    def test_customer_portal_is_customer_scoped(self):
+        response = self.portal_login("denise@example.com", "Customer!2026")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Morris Residence", response.data)
+        self.assertNotIn(b"Alder Creek HOA", response.data)
+
+        staff_response = self.client.get("/customers", follow_redirects=False)
+        self.assertEqual(staff_response.status_code, 302)
+        self.assertIn("/login", staff_response.headers["Location"])
+
+        message_response = self.client.post(
+            "/portal/messages",
+            data={
+                "subject": "Question about driveway access",
+                "message_body": "Can the delivery team confirm whether a car needs to be moved before material drop?",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(message_response.status_code, 200)
+        self.assertIn(b"Message sent to the ConTech team", message_response.data)
+        self.assertIn(b"Question about driveway access", message_response.data)
+
+        self.client.post("/portal/logout", follow_redirects=True)
+        self.login("admin", "ConTech!2026")
+        detail_response = self.client.get("/customers/1")
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertIn(b"Customer Portal Messages", detail_response.data)
+        self.assertIn(b"Question about driveway access", detail_response.data)
+
+    def test_staff_can_create_customer_portal_access(self):
+        self.login("admin", "ConTech!2026")
+        create_response = self.client.post(
+            "/customers/4/portal-users",
+            data={
+                "full_name": "Maria Lopez",
+                "email": "portal-maria@example.com",
+                "password": "PortalPass!2026",
+                "is_active": "on",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(create_response.status_code, 200)
+        self.assertIn(b"Customer portal access created", create_response.data)
+        self.assertIn(b"portal-maria@example.com", create_response.data)
+
+        self.client.post("/logout", follow_redirects=True)
+        portal_response = self.portal_login("portal-maria@example.com", "PortalPass!2026")
+        self.assertEqual(portal_response.status_code, 200)
+        self.assertIn(b"Lopez Residence", portal_response.data)
+        self.assertNotIn(b"Morris Residence", portal_response.data)
 
     def test_customer_lead_opportunity_quote_job_invoice_workflow(self):
         self.login("admin", "ConTech!2026")

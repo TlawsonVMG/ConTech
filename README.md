@@ -93,6 +93,14 @@ Notes:
 - Failed login attempts are now throttled
 - CSRF protection is enabled outside tests
 
+### Customer portal
+
+- Customer portal sign-in: `/portal/login`
+- Staff create and manage customer portal logins from each Customer 360 record
+- Customer portal accounts are invite-only and scoped to one customer record
+- Portal users can review their own quotes, jobs, deliveries, invoices, job documents, contacts, and portal messages
+- Render production seeds no demo portal accounts when `SEED_DEMO_DATA=false`
+
 ### Operational checks and backups
 
 Check the database connection, schema version, and seeded record counts:

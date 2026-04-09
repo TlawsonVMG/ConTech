@@ -44,6 +44,7 @@
             <input type="password" name="password" autocomplete="current-password" required />
           </label>
           <button class="action-button accent wide-button" type="submit">Sign in</button>
+          <a class="mini-link" href="{{ url_for('portal.login') }}">Customer portal sign-in</a>
         </form>
       </section>
 
@@ -51,6 +52,12 @@
         <aside class="auth-panel auth-side">
           <p class="sidebar-label">Demo accounts</p>
           <div class="info-list">
+            <div class="info-row">
+              <div class="info-row-main">
+                <div class="row-title">Customer portal</div>
+                <div class="row-subtitle"><a class="mini-link" href="{{ url_for('portal.login') }}">Open customer sign-in</a></div>
+              </div>
+            </div>
             <div class="info-row">
               <div class="info-row-main">
                 <div class="row-title">Admin</div>
