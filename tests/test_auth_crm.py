@@ -47,14 +47,17 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
     def test_admin_can_log_in_and_see_dashboard(self):
         response = self.login("admin", "ConTech!2026")
         workboard_response = self.client.get("/workboard")
+        job_board_response = self.client.get("/jobs/board")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(workboard_response.status_code, 200)
+        self.assertEqual(job_board_response.status_code, 200)
         self.assertIn(b"Workspace counts", response.data)
         self.assertIn(b"Customers", response.data)
         self.assertIn(b"Thomas Lawson", response.data)
         self.assertIn(b"Work Board", response.data)
         self.assertIn(b"Follow-Up Queue", workboard_response.data)
+        self.assertIn(b"Job build board", job_board_response.data)
 
     def test_readiness_endpoint_reports_database_status(self):
         response = self.client.get("/api/ready")
@@ -604,6 +607,9 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
 
         execution_page = self.client.get(f"/jobs/{job_id}/execution")
         self.assertEqual(execution_page.status_code, 200)
+        self.assertIn(b"Job Control Center", execution_page.data)
+        self.assertIn(b"ERP job flow", execution_page.data)
+        self.assertIn(b"Job build sheet", execution_page.data)
         self.assertIn(b"Change orders", execution_page.data)
 
         change_order_response = self.client.post(

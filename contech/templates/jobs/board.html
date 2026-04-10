@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}ConTech | Job Board{% endblock %}
+{% block kicker %}Construction job board{% endblock %}
+{% block page_title %}Job Board{% endblock %}
+{% block page_description %}Spreadsheet-style production board for handoff, preconstruction, procurement, dispatch, field execution, job cost, and billing closeout.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.jobs_index') }}">Job list</a>
+  {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
+    <a class="action-button accent" href="{{ url_for('crm.jobs_create') }}">New job</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="overview-strip">
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Active jobs</div>
+        <div class="metric-value">{{ summary.active_jobs }}</div>
+      </div>
+      <span class="metric-trend">{{ summary.job_count }} visible</span>
+    </article>
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Revised contract</div>
+        <div class="metric-value">{{ summary.contract_value|currency }}</div>
+      </div>
+      <span class="metric-trend">Filtered board total</span>
+    </article>
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Known cost</div>
+        <div class="metric-value">{{ summary.known_cost|currency }}</div>
+      </div>
+      <span class="metric-trend">{{ summary.projected_margin_pct }}% margin</span>
+    </article>
+    <article class="metric-card">
+      <div>
+        <div class="metric-label">Open pressure</div>
+        <div class="metric-value">{{ summary.open_change_orders }}</div>
+      </div>
+      <span class="metric-trend">{{ summary.material_shortages|round(2) }} shortage / {{ summary.open_ar|currency }} AR</span>
+    </article>
+  </section>
+
+  <section class="card top-gap">
+    <div class="card-header">
+      <div>
+        <h3 class="panel-title">Production phases</h3>
+        <p class="panel-copy">This mirrors a construction ERP flow: sales handoff, preconstruction, procurement, dispatch, field, and closeout.</p>
+      </div>
+    </div>
+    <div class="job-phase-strip">
+      {% for phase in phase_options %}
+        <a class="phase-chip {% if selected_phase == phase %}active{% endif %}" href="{{ url_for('crm.jobs_board', phase=phase, status=selected_status) }}">
+          <span>{{ phase }}</span>
+          <strong>{{ phase_counts[phase] }}</strong>
+        </a>
+      {% endfor %}
+      {% if selected_phase %}
+        <a class="phase-chip" href="{{ url_for('crm.jobs_board', status=selected_status) }}">
+          <span>Clear phase</span>
+          <strong>All</strong>
+        </a>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card top-gap">
+    <form class="toolbar-form" method="get">
+      <select class="toolbar-input" name="phase">
+        <option value="">All phases</option>
+        {% for phase in phase_options %}
+          <option value="{{ phase }}" {% if selected_phase == phase %}selected{% endif %}>{{ phase }}</option>
+        {% endfor %}
+      </select>
+      <select class="toolbar-input" name="status">
+        <option value="">All statuses</option>
+        {% for status in status_options %}
+          <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-button" type="submit">Filter board</button>
+      {% if selected_phase or selected_status %}
+        <a class="action-button" href="{{ url_for('crm.jobs_board') }}">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="card top-gap">
+    <div class="card-header">
+      <div>
+        <h3 class="panel-title">Job build board</h3>
+        <p class="panel-copy">A contractor-friendly control sheet with schedule, purchasing, dispatch, cost, field packet, and billing signals in one row.</p>
+      </div>
+    </div>
+    <div class="table-wrap job-board-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Job / customer</th>
+            <th>Phase</th>
+            <th>Schedule / crew</th>
+            <th>Materials</th>
+            <th>Purchasing</th>
+            <th>Dispatch</th>
+            <th>Field / changes</th>
+            <th>Cost / margin</th>
+            <th>Billing</th>
+            <th>Next action</th>
+            <th>Open</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+            <tr>
+              <td>
+                <div class="row-title">{{ job.name }}</div>
+                <div class="row-subtitle">{{ job.customer_name }}</div>
+                <div class="row-subtitle">{{ job.scope }}</div>
+                <div class="row-subtitle">{{ job.quote_number or 'No quote' }}{% if job.option_name %} / {{ job.option_name }}{% endif %}</div>
+              </td>
+              <td>
+                <span class="status-pill">{{ job.phase }}</span>
+                <div class="row-subtitle top-gap">{{ job.status }}</div>
+              </td>
+              <td>
+                <div class="row-title">{{ job.scheduled_start or 'Not scheduled' }}</div>
+                <div class="row-subtitle">{{ job.crew_name or 'Crew unassigned' }}</div>
+              </td>
+              <td>
+                <span class="status-pill {% if job.material_state == 'Shortage' %}danger{% elif job.material_state == 'Reserved' %}success{% else %}warning{% endif %}">{{ job.material_state }}</span>
+                <div class="row-subtitle top-gap">Lines {{ job.material_count }}</div>
+                <div class="row-subtitle">Req {{ job.requested_qty|round(2) }} / Res {{ job.reserved_qty|round(2) }}</div>
+                <div class="row-subtitle">Short {{ job.shortage_qty|round(2) }}</div>
+              </td>
+              <td>
+                <div class="row-title">{{ job.open_purchase_requests }} open</div>
+                <div class="row-subtitle">ETA {{ job.next_purchase_eta or 'Pending' }}</div>
+              </td>
+              <td>
+                <span class="status-pill {% if job.dispatch_state == 'Active delivery' %}warning{% elif job.dispatch_state == 'Delivered' %}success{% else %}{% endif %}">{{ job.dispatch_state }}</span>
+                <div class="row-subtitle top-gap">{{ job.delivery_count }} delivery record(s)</div>
+                <div class="row-subtitle">Next {{ job.next_delivery_eta or 'Not scheduled' }}</div>
+                <div class="row-subtitle">Last {{ job.last_delivery_status or 'None' }}</div>
+              </td>
+              <td>
+                <div class="row-subtitle">COs {{ job.change_order_count }} / open {{ job.open_change_orders }}</div>
+                <div class="row-subtitle">Field records {{ job.field_record_count }} / review {{ job.open_field_records }}</div>
+                <div class="row-subtitle">Customer tasks {{ job.open_customer_tasks }}</div>
+              </td>
+              <td>
+                <div class="row-title">{{ job.revised_contract_value|currency }}</div>
+                <div class="row-subtitle">Known cost {{ job.known_cost|currency }}</div>
+                <div class="row-subtitle">Projected margin {{ job.projected_margin_pct }}%</div>
+              </td>
+              <td>
+                <span class="status-pill {% if job.billing_state == 'Open AR' %}warning{% elif job.billing_state == 'Invoiced' %}success{% else %}{% endif %}">{{ job.billing_state }}</span>
+                <div class="row-subtitle top-gap">Invoiced {{ job.invoiced_total|currency }}</div>
+                <div class="row-subtitle">Open {{ job.open_balance|currency }}</div>
+              </td>
+              <td>{{ job.next_action }}</td>
+              <td>
+                <div class="table-actions">
+                  <a class="mini-link" href="{{ url_for('crm.jobs_execution', job_id=job.id) }}">Control center</a>
+                  <a class="mini-link" href="{{ url_for('crm.job_materials_index', job_id=job.id) }}">Materials</a>
+                  <a class="mini-link" href="{{ url_for('crm.jobs_costing', job_id=job.id) }}">Costing</a>
+                  <a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=job.customer_id) }}">Customer 360</a>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="11">No jobs match this board view yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

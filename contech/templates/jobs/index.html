@@ -6,6 +6,7 @@
 {% block page_description %}Manage approved work, reserve material, schedule dispatch, and hand jobs forward to billing.{% endblock %}
 
 {% block page_actions %}
+  <a class="action-button" href="{{ url_for('crm.jobs_board') }}">Job board</a>
   {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch') %}
     <a class="action-button accent" href="{{ url_for('crm.jobs_create') }}">New job</a>
   {% endif %}

@@ -78,11 +78,11 @@
             {% endif %}
 
             {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch', 'inventory') %}
-              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.jobs') %}active{% endif %}" href="{{ url_for('crm.jobs_index') }}">
+              <a class="nav-button {% if request.endpoint and request.endpoint.startswith('crm.jobs') %}active{% endif %}" href="{{ url_for('crm.jobs_board') }}">
                 <span class="nav-icon">JB</span>
                 <span>
                   <span class="nav-title">Jobs</span>
-                  <span class="nav-copy">Production handoff</span>
+                  <span class="nav-copy">Board and execution</span>
                 </span>
               </a>
             {% endif %}

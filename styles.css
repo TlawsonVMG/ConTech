@@ -561,6 +561,14 @@ button {
   overflow-x: auto;
 }
 
+.job-board-table table {
+  min-width: 1420px;
+}
+
+.spreadsheet-table table {
+  min-width: 1040px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -594,6 +602,90 @@ tbody tr:last-child td {
 .row-subtitle {
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.job-phase-strip,
+.workflow-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+
+.phase-chip,
+.workflow-step {
+  border: 1px solid rgba(223, 201, 194, 0.86);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fffaf7 0%, #fff2ee 100%);
+}
+
+.phase-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.9rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.phase-chip strong {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--accent-strong);
+}
+
+.phase-chip.active,
+.phase-chip:hover,
+.phase-chip:focus-visible {
+  border-color: rgba(198, 77, 62, 0.5);
+  box-shadow: var(--shadow-soft);
+  outline: none;
+}
+
+.workflow-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.95rem;
+}
+
+.workflow-step.done {
+  background: linear-gradient(180deg, #f4fbf7 0%, #eaf6ef 100%);
+}
+
+.workflow-step.current {
+  background: linear-gradient(180deg, #fffaf7 0%, #fff1df 100%);
+}
+
+.workflow-step.attention {
+  background: linear-gradient(180deg, #fff7f2 0%, #fbe7e7 100%);
+}
+
+.workflow-step.waiting {
+  background: linear-gradient(180deg, #fffdfc 0%, #f7ebe7 100%);
+}
+
+.workflow-number {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--surface-strong);
+  color: var(--accent-strong);
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-weight: 700;
+}
+
+.workflow-copy {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .copy-link-input {

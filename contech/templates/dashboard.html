@@ -168,7 +168,7 @@
           </a>
         {% endif %}
         {% if current_user and current_user['role_name'] in ('admin', 'sales', 'dispatch', 'inventory', 'accounting') %}
-          <a class="schedule-card block-link" href="{{ url_for('crm.jobs_index') }}">
+          <a class="schedule-card block-link" href="{{ url_for('crm.jobs_board') }}">
             <div class="row-title">Jobs</div>
             <div class="row-subtitle">Create production records and push them into material and dispatch workflow.</div>
           </a>

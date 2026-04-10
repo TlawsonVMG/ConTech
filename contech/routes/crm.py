@@ -37,6 +37,7 @@ JOB_STATUSES = (
     "Completed",
     "Cancelled",
 )
+JOB_BOARD_PHASES = ("Handoff", "Preconstruction", "Procurement", "Dispatch", "Field", "Closeout", "Cancelled")
 INVOICE_STATUSES = ("Draft", "Issued", "Partial Paid", "Paid", "Void")
 DELIVERY_STATUSES = ("Scheduled", "Loading", "En route", "Delivered", "Delayed", "Cancelled")
 INVENTORY_CATEGORIES = ("Roofing", "Siding", "Trim", "Gutters", "Accessories", "Wrap", "Fasteners")
@@ -364,6 +365,50 @@ def _calculate_margin_pct(amount, estimated_cost):
     if amount in (None, 0) or estimated_cost is None:
         return 0
     return round(((amount - estimated_cost) / amount) * 100, 1)
+
+
+def _job_board_phase(status):
+    if status == "Cancelled":
+        return "Cancelled"
+    if status == "Completed":
+        return "Closeout"
+    if status in {"Ready for production", "In progress"}:
+        return "Field"
+    if status == "Delivery pending":
+        return "Dispatch"
+    if status == "Materials reserved":
+        return "Procurement"
+    if status == "Scheduled":
+        return "Preconstruction"
+    return "Handoff"
+
+
+def _job_board_next_action(job):
+    if job["status"] == "Cancelled":
+        return "Confirm archive notes and keep financial records locked."
+    if job["status"] == "Completed":
+        if (job["open_balance"] or 0) > 0:
+            return "Collect remaining balance or schedule final payment follow-up."
+        return "Close out warranty, photos, and final customer packet."
+    if not job["scheduled_start"]:
+        return "Set the install date and assign the crew."
+    if (job["shortage_qty"] or 0) > 0:
+        return "Resolve material shortage before dispatch."
+    if (job["open_purchase_requests"] or 0) > 0:
+        return "Confirm supplier ETA and purchasing status."
+    if (job["active_delivery_count"] or 0) > 0:
+        return "Track delivery window and crew readiness."
+    if job["status"] in {"Sales handoff", "Scheduled"}:
+        return "Build the material, purchasing, and dispatch plan."
+    if (job["open_change_orders"] or 0) > 0:
+        return "Review open change orders before the next billing step."
+    if job["status"] == "Ready for production":
+        return "Confirm production packet and start field work."
+    if job["status"] == "In progress":
+        return "Post field records, costs, and progress notes."
+    if (job["invoice_count"] or 0) == 0:
+        return "Prepare the first progress invoice."
+    return "Review the job packet and keep the board moving."
 
 
 def _validate_quote_form(data):
@@ -3012,6 +3057,130 @@ def quotes_delete(quote_id):
     return redirect(url_for("crm.quotes_index"))
 
 
+@bp.get("/jobs/board")
+@roles_required(*ALL_APP_ROLES)
+def jobs_board():
+    selected_phase = request.args.get("phase", "").strip()
+    selected_status = request.args.get("status", "").strip()
+    params = []
+    where_clauses = []
+    sql = """
+        SELECT j.*, c.name AS customer_name, q.quote_number, q.option_name,
+               (SELECT COUNT(*) FROM invoices i WHERE i.job_id = j.id) AS invoice_count,
+               (SELECT COALESCE(SUM(i.amount), 0) FROM invoices i WHERE i.job_id = j.id) AS invoiced_total,
+               (SELECT COALESCE(SUM(i.remaining_balance), 0) FROM invoices i WHERE i.job_id = j.id) AS open_balance,
+               (SELECT COUNT(*) FROM deliveries d WHERE d.job_id = j.id) AS delivery_count,
+               (SELECT COUNT(*) FROM deliveries d WHERE d.job_id = j.id AND d.status IN ('Scheduled', 'Loading', 'En route', 'Delayed')) AS active_delivery_count,
+               (SELECT COUNT(*) FROM deliveries d WHERE d.job_id = j.id AND d.status = 'Delivered') AS delivered_delivery_count,
+               (SELECT d.eta FROM deliveries d WHERE d.job_id = j.id AND d.status IN ('Scheduled', 'Loading', 'En route', 'Delayed') ORDER BY d.eta ASC, d.id ASC LIMIT 1) AS next_delivery_eta,
+               (SELECT d.status FROM deliveries d WHERE d.job_id = j.id ORDER BY d.eta DESC, d.id DESC LIMIT 1) AS last_delivery_status,
+               (SELECT COUNT(*) FROM job_materials jm WHERE jm.job_id = j.id) AS material_count,
+               (SELECT COALESCE(SUM(jm.requested_qty), 0) FROM job_materials jm WHERE jm.job_id = j.id) AS requested_qty,
+               (SELECT COALESCE(SUM(jm.reserved_qty), 0) FROM job_materials jm WHERE jm.job_id = j.id) AS reserved_qty,
+               (SELECT COALESCE(SUM(jm.shortage_qty), 0) FROM job_materials jm WHERE jm.job_id = j.id) AS shortage_qty,
+               (SELECT COALESCE(SUM(jm.reserved_qty * i.unit_cost), 0)
+                FROM job_materials jm JOIN inventory_items i ON i.id = jm.inventory_item_id
+                WHERE jm.job_id = j.id) AS reserved_material_cost,
+               (SELECT COUNT(*) FROM purchase_requests pr WHERE pr.job_id = j.id AND pr.status IN ('Open', 'Quoted', 'Ordered')) AS open_purchase_requests,
+               (SELECT MIN(COALESCE(pr.eta_date, pr.needed_by)) FROM purchase_requests pr WHERE pr.job_id = j.id AND pr.status IN ('Open', 'Quoted', 'Ordered')) AS next_purchase_eta,
+               (SELECT COUNT(*) FROM change_orders co WHERE co.job_id = j.id) AS change_order_count,
+               (SELECT COUNT(*) FROM change_orders co WHERE co.job_id = j.id AND co.status IN ('Draft', 'Pending Approval')) AS open_change_orders,
+               (SELECT COALESCE(SUM(CASE WHEN co.status = 'Approved' AND co.is_billable = 1 THEN co.amount ELSE 0 END), 0)
+                FROM change_orders co WHERE co.job_id = j.id) AS approved_change_revenue,
+               (SELECT COALESCE(SUM(CASE WHEN co.status = 'Approved' THEN co.cost_impact ELSE 0 END), 0)
+                FROM change_orders co WHERE co.job_id = j.id) AS approved_change_cost,
+               (SELECT COUNT(*) FROM job_documents jd WHERE jd.job_id = j.id) AS field_record_count,
+               (SELECT COUNT(*) FROM job_documents jd WHERE jd.job_id = j.id AND jd.status IN ('Logged', 'Pending Review')) AS open_field_records,
+               (SELECT COALESCE(SUM(jc.total_cost), 0) FROM job_cost_entries jc WHERE jc.job_id = j.id) AS actual_cost,
+               (SELECT COUNT(*) FROM tasks t WHERE t.customer_id = j.customer_id AND t.status IN ('open', 'scheduled') AND t.module_name IN ('Operations', 'Dispatch', 'Accounting')) AS open_customer_tasks
+        FROM jobs j
+        JOIN customers c ON c.id = j.customer_id
+        LEFT JOIN quotes q ON q.id = j.quote_id
+    """
+    if selected_status:
+        where_clauses.append("j.status = ?")
+        params.append(selected_status)
+    if where_clauses:
+        sql += " WHERE " + " AND ".join(where_clauses)
+    sql += """
+        ORDER BY CASE j.status
+            WHEN 'Sales handoff' THEN 1
+            WHEN 'Scheduled' THEN 2
+            WHEN 'Materials reserved' THEN 3
+            WHEN 'Delivery pending' THEN 4
+            WHEN 'Ready for production' THEN 5
+            WHEN 'In progress' THEN 6
+            WHEN 'Completed' THEN 7
+            ELSE 8
+        END, j.scheduled_start IS NULL, j.scheduled_start, j.id DESC
+    """
+
+    rows = get_db().execute(sql, params).fetchall()
+    board_jobs = []
+    phase_counts = {phase: 0 for phase in JOB_BOARD_PHASES}
+    summary = {
+        "job_count": 0,
+        "active_jobs": 0,
+        "contract_value": 0,
+        "known_cost": 0,
+        "open_change_orders": 0,
+        "material_shortages": 0,
+        "open_ar": 0,
+    }
+
+    for row in rows:
+        job = dict(row)
+        phase = _job_board_phase(job["status"])
+        phase_counts[phase] += 1
+        if selected_phase and selected_phase != phase:
+            continue
+
+        revised_contract_value = (job["committed_revenue"] or 0) + (job["approved_change_revenue"] or 0)
+        known_cost = (job["actual_cost"] or 0) + (job["reserved_material_cost"] or 0) + (job["approved_change_cost"] or 0)
+        job["phase"] = phase
+        job["revised_contract_value"] = revised_contract_value
+        job["known_cost"] = known_cost
+        job["projected_margin_pct"] = _calculate_margin_pct(revised_contract_value, known_cost)
+        job["next_action"] = _job_board_next_action(job)
+        job["material_state"] = (
+            "Shortage"
+            if (job["shortage_qty"] or 0) > 0
+            else ("Reserved" if (job["material_count"] or 0) > 0 else "Not built")
+        )
+        job["billing_state"] = (
+            "Open AR"
+            if (job["open_balance"] or 0) > 0
+            else ("Invoiced" if (job["invoice_count"] or 0) > 0 else "Not billed")
+        )
+        job["dispatch_state"] = (
+            "Active delivery"
+            if (job["active_delivery_count"] or 0) > 0
+            else ("Delivered" if (job["delivered_delivery_count"] or 0) > 0 else "Not dispatched")
+        )
+
+        summary["job_count"] += 1
+        if job["status"] not in {"Completed", "Cancelled"}:
+            summary["active_jobs"] += 1
+        summary["contract_value"] += revised_contract_value
+        summary["known_cost"] += known_cost
+        summary["open_change_orders"] += job["open_change_orders"] or 0
+        summary["material_shortages"] += job["shortage_qty"] or 0
+        summary["open_ar"] += job["open_balance"] or 0
+        board_jobs.append(job)
+
+    summary["projected_margin_pct"] = _calculate_margin_pct(summary["contract_value"], summary["known_cost"])
+    return render_template(
+        "jobs/board.html",
+        jobs=board_jobs,
+        phase_counts=phase_counts,
+        selected_phase=selected_phase,
+        selected_status=selected_status,
+        phase_options=JOB_BOARD_PHASES,
+        status_options=JOB_STATUSES,
+        summary=summary,
+    )
+
+
 @bp.get("/jobs")
 @roles_required(*ALL_APP_ROLES)
 def jobs_index():
@@ -3415,6 +3584,71 @@ def jobs_execution(job_id):
         """,
         (job_id,),
     ).fetchall()
+    materials = db.execute(
+        """
+        SELECT jm.*, i.sku, i.item_name, i.category, i.unit_cost, v.name AS vendor_name
+        FROM job_materials jm
+        JOIN inventory_items i ON i.id = jm.inventory_item_id
+        LEFT JOIN vendors v ON v.id = i.vendor_id
+        WHERE jm.job_id = ?
+        ORDER BY CASE
+            WHEN jm.shortage_qty > 0 THEN 1
+            WHEN jm.status = 'Partial' THEN 2
+            ELSE 3
+        END, jm.id DESC
+        LIMIT 8
+        """,
+        (job_id,),
+    ).fetchall()
+    purchase_requests = db.execute(
+        """
+        SELECT pr.*, v.name AS vendor_name, i.item_name, i.sku
+        FROM purchase_requests pr
+        LEFT JOIN vendors v ON v.id = pr.vendor_id
+        LEFT JOIN inventory_items i ON i.id = pr.inventory_item_id
+        WHERE pr.job_id = ?
+        ORDER BY CASE pr.status
+            WHEN 'Open' THEN 1
+            WHEN 'Quoted' THEN 2
+            WHEN 'Ordered' THEN 3
+            WHEN 'Received' THEN 4
+            ELSE 5
+        END, pr.needed_by IS NULL, pr.needed_by, pr.id DESC
+        LIMIT 8
+        """,
+        (job_id,),
+    ).fetchall()
+    cost_entries = db.execute(
+        """
+        SELECT jc.*, v.name AS vendor_name
+        FROM job_cost_entries jc
+        LEFT JOIN vendors v ON v.id = jc.vendor_id
+        WHERE jc.job_id = ?
+        ORDER BY jc.cost_date DESC, jc.id DESC
+        LIMIT 8
+        """,
+        (job_id,),
+    ).fetchall()
+    customer_tasks = db.execute(
+        """
+        SELECT id, title, module_name, owner_name, due_date, reminder_at, status, priority, details
+        FROM tasks
+        WHERE customer_id = ? AND status IN ('open', 'scheduled') AND module_name IN ('Operations', 'Dispatch', 'Accounting')
+        ORDER BY due_date ASC, id DESC
+        LIMIT 6
+        """,
+        (job["customer_id"],),
+    ).fetchall()
+    recent_activity = db.execute(
+        """
+        SELECT id, activity_date, activity_type, owner_name, title, details
+        FROM activity_feed
+        WHERE customer_id = ?
+        ORDER BY activity_date DESC, id DESC
+        LIMIT 6
+        """,
+        (job["customer_id"],),
+    ).fetchall()
     invoice_snapshot = db.execute(
         """
         SELECT COUNT(*) AS count,
@@ -3425,9 +3659,58 @@ def jobs_execution(job_id):
         """,
         (job_id,),
     ).fetchone()
+    material_snapshot = db.execute(
+        """
+        SELECT COUNT(*) AS line_count,
+               COALESCE(SUM(jm.requested_qty), 0) AS requested_qty,
+               COALESCE(SUM(jm.reserved_qty), 0) AS reserved_qty,
+               COALESCE(SUM(jm.shortage_qty), 0) AS shortage_qty,
+               COALESCE(SUM(jm.reserved_qty * i.unit_cost), 0) AS reserved_material_cost
+        FROM job_materials jm
+        JOIN inventory_items i ON i.id = jm.inventory_item_id
+        WHERE jm.job_id = ?
+        """,
+        (job_id,),
+    ).fetchone()
+    purchase_snapshot = db.execute(
+        """
+        SELECT COUNT(*) AS count,
+               COALESCE(SUM(CASE WHEN status IN ('Open', 'Quoted', 'Ordered') THEN 1 ELSE 0 END), 0) AS open_count,
+               MIN(COALESCE(eta_date, needed_by)) AS next_eta
+        FROM purchase_requests
+        WHERE job_id = ?
+        """,
+        (job_id,),
+    ).fetchone()
+    delivery_snapshot = db.execute(
+        """
+        SELECT COUNT(*) AS count,
+               COALESCE(SUM(CASE WHEN status IN ('Scheduled', 'Loading', 'En route', 'Delayed') THEN 1 ELSE 0 END), 0) AS active_count,
+               COALESCE(SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END), 0) AS delivered_count,
+               MIN(CASE WHEN status IN ('Scheduled', 'Loading', 'En route', 'Delayed') THEN eta ELSE NULL END) AS next_eta
+        FROM deliveries
+        WHERE job_id = ?
+        """,
+        (job_id,),
+    ).fetchone()
+    cost_snapshot = db.execute(
+        """
+        SELECT COUNT(*) AS count,
+               COALESCE(SUM(total_cost), 0) AS total
+        FROM job_cost_entries
+        WHERE job_id = ?
+        """,
+        (job_id,),
+    ).fetchone()
     execution_snapshot = _job_execution_snapshot(job_id)
+    revised_contract_value = job["committed_revenue"] + execution_snapshot["approved_change_revenue"]
+    known_cost = (
+        (cost_snapshot["total"] or 0)
+        + (material_snapshot["reserved_material_cost"] or 0)
+        + (execution_snapshot["approved_change_cost"] or 0)
+    )
     summary = {
-        "revised_contract_value": job["committed_revenue"] + execution_snapshot["approved_change_revenue"],
+        "revised_contract_value": revised_contract_value,
         "approved_change_revenue": execution_snapshot["approved_change_revenue"],
         "approved_change_cost": execution_snapshot["approved_change_cost"],
         "open_change_orders": execution_snapshot["open_change_orders"],
@@ -3436,7 +3719,68 @@ def jobs_execution(job_id):
         "invoice_count": invoice_snapshot["count"],
         "invoiced_total": invoice_snapshot["total"],
         "open_balance": invoice_snapshot["balance"],
+        "material_line_count": material_snapshot["line_count"],
+        "requested_qty": material_snapshot["requested_qty"],
+        "reserved_qty": material_snapshot["reserved_qty"],
+        "shortage_qty": material_snapshot["shortage_qty"],
+        "reserved_material_cost": material_snapshot["reserved_material_cost"],
+        "purchase_request_count": purchase_snapshot["count"],
+        "open_purchase_requests": purchase_snapshot["open_count"],
+        "next_purchase_eta": purchase_snapshot["next_eta"],
+        "delivery_count": delivery_snapshot["count"],
+        "active_deliveries": delivery_snapshot["active_count"],
+        "delivered_deliveries": delivery_snapshot["delivered_count"],
+        "next_delivery_eta": delivery_snapshot["next_eta"],
+        "cost_entry_count": cost_snapshot["count"],
+        "tracked_cost": cost_snapshot["total"],
+        "known_cost": known_cost,
+        "projected_margin_pct": _calculate_margin_pct(revised_contract_value, known_cost),
+        "open_customer_tasks": len(customer_tasks),
     }
+    workflow_steps = [
+        {
+            "number": "01",
+            "label": "Sales handoff",
+            "state": "done" if job["quote_number"] else "attention",
+            "status": job["quote_number"] or "Manual job",
+            "detail": "Signed quote, scope, deposit, and customer handoff.",
+        },
+        {
+            "number": "02",
+            "label": "Preconstruction",
+            "state": "done" if job["scheduled_start"] else "attention",
+            "status": job["scheduled_start"] or "Needs schedule",
+            "detail": f"Crew {job['crew_name'] or 'unassigned'} and start date readiness.",
+        },
+        {
+            "number": "03",
+            "label": "Materials + purchasing",
+            "state": "attention" if summary["shortage_qty"] or summary["open_purchase_requests"] else ("done" if summary["material_line_count"] else "current"),
+            "status": f"{summary['shortage_qty']:,.2f} shortage" if summary["shortage_qty"] else f"{summary['material_line_count']} line(s)",
+            "detail": "Inventory reservations, shortages, supplier ETA, and purchase requests.",
+        },
+        {
+            "number": "04",
+            "label": "Dispatch + field",
+            "state": "current" if summary["active_deliveries"] or job["status"] in {"Ready for production", "In progress"} else ("done" if summary["delivered_deliveries"] else "waiting"),
+            "status": job["status"],
+            "detail": "Delivery schedule, crew movement, field photos, permits, and inspections.",
+        },
+        {
+            "number": "05",
+            "label": "Cost + change control",
+            "state": "attention" if summary["open_change_orders"] else ("done" if summary["cost_entry_count"] else "waiting"),
+            "status": f"{summary['open_change_orders']} open CO(s)",
+            "detail": "Job cost codes, committed costs, revisions, and margin drift.",
+        },
+        {
+            "number": "06",
+            "label": "Billing + closeout",
+            "state": "attention" if summary["open_balance"] else ("done" if summary["invoice_count"] else "waiting"),
+            "status": f"{summary['invoice_count']} invoice(s)",
+            "detail": "Progress billing, retainage, collections, warranty, and final packet.",
+        },
+    ]
     change_order_defaults = {
         "change_number": _next_document_number("CO", "change_orders", "change_number"),
         "title": "",
@@ -3466,6 +3810,12 @@ def jobs_execution(job_id):
         change_orders=change_orders,
         documents=documents,
         deliveries=deliveries,
+        materials=materials,
+        purchase_requests=purchase_requests,
+        cost_entries=cost_entries,
+        customer_tasks=customer_tasks,
+        recent_activity=recent_activity,
+        workflow_steps=workflow_steps,
         summary=summary,
         change_order_defaults=change_order_defaults,
         document_defaults=document_defaults,
