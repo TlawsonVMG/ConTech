@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash
 
 from .seed import seed_demo_data
 
-SCHEMA_VERSION = "2026.04.09.customer-portal"
+SCHEMA_VERSION = "2026.04.10.customer-invites"
 
 try:
     import psycopg
@@ -124,7 +124,22 @@ REQUIRED_COLUMNS = {
     "email_messages": {"direction", "contact_email", "integration_status"},
     "calendar_events": {"event_type", "starts_at", "integration_status"},
     "customer_contacts": {"customer_id", "full_name", "role_label", "is_primary"},
-    "customer_portal_users": {"customer_id", "email", "password_hash", "full_name", "is_active"},
+    "customers": {"company_name", "company_address", "company_logo_filename", "company_profile_updated_at"},
+    "customer_portal_users": {
+        "customer_id",
+        "email",
+        "password_hash",
+        "full_name",
+        "is_active",
+        "role_label",
+        "phone",
+        "invite_token_hash",
+        "invite_status",
+        "invite_sent_at",
+        "invite_expires_at",
+        "invite_accepted_at",
+        "profile_completed_at",
+    },
     "portal_messages": {"customer_id", "portal_user_id", "subject", "message_body", "status"},
     "invoice_payments": {"invoice_id", "payment_date", "payment_amount", "payment_method", "posted_by"},
 }
@@ -409,9 +424,17 @@ def _create_customer_portal_users_table(db):
                 email TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 full_name TEXT NOT NULL,
+                role_label TEXT,
+                phone TEXT,
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
-                last_login_at TEXT
+                last_login_at TEXT,
+                invite_token_hash TEXT,
+                invite_status TEXT NOT NULL DEFAULT 'accepted',
+                invite_sent_at TEXT,
+                invite_expires_at TEXT,
+                invite_accepted_at TEXT,
+                profile_completed_at TEXT
             )
             """
         )
@@ -425,9 +448,17 @@ def _create_customer_portal_users_table(db):
                 email TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 full_name TEXT NOT NULL,
+                role_label TEXT,
+                phone TEXT,
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
-                last_login_at TEXT
+                last_login_at TEXT,
+                invite_token_hash TEXT,
+                invite_status TEXT NOT NULL DEFAULT 'accepted',
+                invite_sent_at TEXT,
+                invite_expires_at TEXT,
+                invite_accepted_at TEXT,
+                profile_completed_at TEXT
             )
             """
         )
@@ -475,13 +506,47 @@ def _create_portal_messages_table(db):
         )
 
 
+def _add_column_if_missing(db, table_name, column_name, column_definition):
+    table_name = _validate_identifier(table_name)
+    column_name = _validate_identifier(column_name)
+    if column_name in db.table_columns(table_name):
+        return
+    db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+
+
+def _migrate_customer_profile_columns(db):
+    if not db.table_exists("customers"):
+        return
+
+    _add_column_if_missing(db, "customers", "company_name", "TEXT")
+    _add_column_if_missing(db, "customers", "company_address", "TEXT")
+    _add_column_if_missing(db, "customers", "company_logo_filename", "TEXT")
+    _add_column_if_missing(db, "customers", "company_profile_updated_at", "TEXT")
+
+
+def _migrate_customer_portal_user_columns(db):
+    if not db.table_exists("customer_portal_users"):
+        return
+
+    _add_column_if_missing(db, "customer_portal_users", "role_label", "TEXT")
+    _add_column_if_missing(db, "customer_portal_users", "phone", "TEXT")
+    _add_column_if_missing(db, "customer_portal_users", "invite_token_hash", "TEXT")
+    _add_column_if_missing(db, "customer_portal_users", "invite_status", "TEXT NOT NULL DEFAULT 'accepted'")
+    _add_column_if_missing(db, "customer_portal_users", "invite_sent_at", "TEXT")
+    _add_column_if_missing(db, "customer_portal_users", "invite_expires_at", "TEXT")
+    _add_column_if_missing(db, "customer_portal_users", "invite_accepted_at", "TEXT")
+    _add_column_if_missing(db, "customer_portal_users", "profile_completed_at", "TEXT")
+
+
 def apply_non_destructive_migrations(db):
     if not db.table_exists("branches") or not db.table_exists("customers"):
         return
 
+    _migrate_customer_profile_columns(db)
     _create_customer_portal_users_table(db)
+    _migrate_customer_portal_user_columns(db)
     _create_portal_messages_table(db)
-    record_schema_version(db, version="2026.04.09.customer-portal", notes="Customer portal tables added")
+    record_schema_version(db, version="2026.04.10.customer-invites", notes="Customer invite and profile columns added")
 
 
 def _schema_is_current(db):

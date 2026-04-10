@@ -40,6 +40,7 @@ def _load_config_from_env(app):
         "DATABASE_URL",
         "UPLOAD_FOLDER",
         "JOB_DOCUMENT_UPLOAD_FOLDER",
+        "CUSTOMER_LOGO_UPLOAD_FOLDER",
         "BOOTSTRAP_ADMIN_USERNAME",
         "BOOTSTRAP_ADMIN_PASSWORD",
         "BOOTSTRAP_ADMIN_FULL_NAME",
@@ -95,6 +96,7 @@ def create_app(test_config=None):
         DATABASE_URL=None,
         UPLOAD_FOLDER=str(Path(app.instance_path) / "uploads"),
         JOB_DOCUMENT_UPLOAD_FOLDER=str(Path(app.instance_path) / "uploads" / "job-documents"),
+        CUSTOMER_LOGO_UPLOAD_FOLDER=str(Path(app.instance_path) / "uploads" / "customer-logos"),
         MAX_CONTENT_LENGTH=16 * 1024 * 1024,
         AUTO_INIT_DB=True,
         SEED_DEMO_DATA=True,
@@ -135,6 +137,7 @@ def create_app(test_config=None):
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
     Path(app.config["JOB_DOCUMENT_UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
+    Path(app.config["CUSTOMER_LOGO_UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
     if app.config.get("TRUST_PROXY_HEADERS"):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # type: ignore[assignment]
 

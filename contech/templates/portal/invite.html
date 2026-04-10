@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ConTech | Customer Portal Setup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <link rel="stylesheet" href="{{ url_for('web.styles') }}" />
+  </head>
+  <body class="crm-body">
+    <div class="backdrop"></div>
+    <main class="auth-shell invite-shell">
+      <section class="auth-panel">
+        <p class="eyebrow">Customer Portal Invite</p>
+        {% if invite_record %}
+          <h1 class="hero-title">Set up your ConTech profile.</h1>
+          <p class="hero-subtitle">
+            Your invite is connected to {{ invite_record.customer_name }}. Add the company or customer information
+            ConTech should use on quote headers and customer-facing documents.
+          </p>
+        {% else %}
+          <h1 class="hero-title">This invite is no longer active.</h1>
+          <p class="hero-subtitle">Please ask the ConTech team to send a fresh customer portal setup link.</p>
+          <a class="action-button accent" href="{{ url_for('portal.login') }}">Back to portal sign-in</a>
+        {% endif %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+      </section>
+
+      {% if invite_record %}
+        <section class="auth-panel auth-side">
+          <form class="form-grid two-column-form" method="post" enctype="multipart/form-data">
+            {{ csrf_input() }}
+            <label class="form-field">
+              <span>Your name</span>
+              <input type="text" name="full_name" value="{{ setup.full_name }}" required />
+            </label>
+            <label class="form-field">
+              <span>Email</span>
+              <input type="email" name="email" value="{{ setup.email }}" required />
+            </label>
+            <label class="form-field">
+              <span>Role / title</span>
+              <input type="text" name="role_label" value="{{ setup.role_label }}" placeholder="Owner, AP, Property manager" />
+            </label>
+            <label class="form-field">
+              <span>Phone</span>
+              <input type="tel" name="phone" value="{{ setup.phone }}" />
+            </label>
+            <label class="form-field span-full">
+              <span>Company / customer name for quotes</span>
+              <input type="text" name="company_name" value="{{ setup.company_name }}" required />
+            </label>
+            <label class="form-field span-full">
+              <span>Company / billing address for quotes</span>
+              <textarea name="company_address" rows="3" required>{{ setup.company_address }}</textarea>
+            </label>
+            <label class="form-field span-full">
+              <span>Company logo, if applicable</span>
+              <input type="file" name="company_logo" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" />
+            </label>
+            <label class="form-field">
+              <span>Create password</span>
+              <input type="password" name="password" autocomplete="new-password" minlength="10" required />
+            </label>
+            <label class="form-field">
+              <span>Confirm password</span>
+              <input type="password" name="confirm_password" autocomplete="new-password" minlength="10" required />
+            </label>
+            <div class="form-actions span-full">
+              <button class="action-button accent" type="submit">Create portal account</button>
+            </div>
+            <p class="panel-copy span-full">This link expires {{ invite_record.invite_expires_at }}.</p>
+          </form>
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

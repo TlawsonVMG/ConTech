@@ -126,12 +126,20 @@
         </div>
         <a class="mini-link" href="{{ url_for('portal.login') }}" target="_blank" rel="noreferrer">Open portal</a>
       </div>
+      {% if portal_invite_link %}
+        <div class="schedule-card">
+          <div class="row-title">Copy this setup link</div>
+          <div class="row-subtitle">Send this to the customer manually for now. It expires {{ portal_invite_expires_at }}.</div>
+          <input class="copy-link-input top-gap" type="text" value="{{ portal_invite_link }}" readonly />
+        </div>
+      {% endif %}
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Portal user</th>
               <th>Status</th>
+              <th>Invite</th>
               <th>Reset / update</th>
             </tr>
           </thead>
@@ -141,13 +149,28 @@
                 <td>
                   <div class="row-title">{{ portal_user.full_name }}</div>
                   <div class="row-subtitle">{{ portal_user.email }}</div>
+                  <div class="row-subtitle">{{ portal_user.role_label or 'Customer contact' }}{% if portal_user.phone %} / {{ portal_user.phone }}{% endif %}</div>
                   <div class="row-subtitle">Created {{ portal_user.created_at }}{% if portal_user.last_login_at %} / Last login {{ portal_user.last_login_at }}{% endif %}</div>
                 </td>
                 <td>
-                  {% if portal_user.is_active %}
+                  {% if portal_user.invite_status == 'pending' %}
+                    <span class="status-pill warning">Invite pending</span>
+                  {% elif portal_user.is_active %}
                     <span class="status-pill success">Active</span>
                   {% else %}
                     <span class="status-pill danger">Inactive</span>
+                  {% endif %}
+                  {% if portal_user.profile_completed_at %}
+                    <div class="row-subtitle">Profile completed {{ portal_user.profile_completed_at }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <form method="post" action="{{ url_for('crm.customer_portal_users_invite', portal_user_id=portal_user.id) }}">
+                    {{ csrf_input() }}
+                    <button class="mini-link" type="submit">Generate setup link</button>
+                  </form>
+                  {% if portal_user.invite_expires_at %}
+                    <div class="row-subtitle">Expires {{ portal_user.invite_expires_at }}</div>
                   {% endif %}
                 </td>
                 <td>
@@ -155,6 +178,8 @@
                     {{ csrf_input() }}
                     <input type="hidden" name="full_name" value="{{ portal_user.full_name }}" />
                     <input type="hidden" name="email" value="{{ portal_user.email }}" />
+                    <input type="hidden" name="role_label" value="{{ portal_user.role_label or '' }}" />
+                    <input type="hidden" name="phone" value="{{ portal_user.phone or '' }}" />
                     <label class="form-field">
                       <span>New password</span>
                       <input type="password" name="password" placeholder="Leave blank to keep current" />
@@ -169,7 +194,7 @@
               </tr>
             {% else %}
               <tr>
-                <td colspan="3">No customer portal users have been created yet.</td>
+                <td colspan="4">No customer portal users have been created yet.</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -180,8 +205,8 @@
     <article class="card span-5">
       <div class="card-header">
         <div>
-          <h3 class="panel-title">Create portal login</h3>
-          <p class="panel-copy">Use this for customers who should view their account online.</p>
+          <h3 class="panel-title">Create portal invite</h3>
+          <p class="panel-copy">Generate a setup link. The customer will create their password and profile.</p>
         </div>
       </div>
       <form class="form-grid" method="post" action="{{ url_for('crm.customer_portal_users_create', customer_id=customer.id) }}">
@@ -195,17 +220,40 @@
           <input type="email" name="email" value="{{ customer.email or '' }}" required />
         </label>
         <label class="form-field">
-          <span>Temporary password</span>
-          <input type="password" name="password" minlength="10" required />
+          <span>Role / title</span>
+          <input type="text" name="role_label" value="Primary contact" />
         </label>
-        <label class="form-field checkbox-field span-full">
-          <input type="checkbox" name="is_active" checked />
-          <span>Allow this customer to sign in.</span>
+        <label class="form-field">
+          <span>Phone</span>
+          <input type="tel" name="phone" value="{{ customer.phone or '' }}" />
         </label>
         <div class="form-actions">
-          <button class="action-button accent" type="submit">Create portal access</button>
+          <button class="action-button accent" type="submit">Create setup invite</button>
         </div>
       </form>
+    </article>
+  </section>
+
+  <section class="view-grid top-gap">
+    <article class="card span-12">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Customer quote header profile</h3>
+          <p class="panel-copy">Company profile details customers submit during portal setup. This is ready for quote header use.</p>
+        </div>
+      </div>
+      <div class="quote-header-preview">
+        {% if customer.company_logo_filename %}
+          <img class="quote-logo-preview" src="{{ url_for('crm.customers_logo', customer_id=customer.id) }}" alt="{{ customer.company_name or customer.name }} logo" />
+        {% else %}
+          <div class="quote-logo-placeholder">Logo optional</div>
+        {% endif %}
+        <div>
+          <div class="row-title">{{ customer.company_name or customer.name }}</div>
+          <div class="row-subtitle">{{ customer.company_address or customer.service_address }}</div>
+          <div class="row-subtitle">Updated {{ customer.company_profile_updated_at or 'pending customer setup' }}</div>
+        </div>
+      </div>
     </article>
   </section>
 

@@ -74,7 +74,11 @@ CREATE TABLE customers (
     service_address TEXT NOT NULL,
     status TEXT NOT NULL,
     trade_mix TEXT,
-    notes TEXT
+    notes TEXT,
+    company_name TEXT,
+    company_address TEXT,
+    company_logo_filename TEXT,
+    company_profile_updated_at TEXT
 );
 
 CREATE TABLE customer_contacts (
@@ -96,9 +100,17 @@ CREATE TABLE customer_portal_users (
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     full_name TEXT NOT NULL,
+    role_label TEXT,
+    phone TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
-    last_login_at TEXT
+    last_login_at TEXT,
+    invite_token_hash TEXT,
+    invite_status TEXT NOT NULL DEFAULT 'accepted',
+    invite_sent_at TEXT,
+    invite_expires_at TEXT,
+    invite_accepted_at TEXT,
+    profile_completed_at TEXT
 );
 
 CREATE TABLE portal_messages (

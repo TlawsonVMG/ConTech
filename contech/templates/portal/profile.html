@@ -1,0 +1,78 @@
+{% extends "portal/base.html" %}
+
+{% block title %}ConTech Portal | Profile{% endblock %}
+{% block kicker %}Customer Portal{% endblock %}
+{% block page_title %}Profile And Quote Header{% endblock %}
+{% block page_description %}Manage your portal contact information and the company details ConTech can place on quotes.{% endblock %}
+
+{% block page_actions %}
+  <a class="action-button accent" href="{{ url_for('portal.dashboard') }}">Back to portal</a>
+{% endblock %}
+
+{% block content %}
+  <section class="view-grid">
+    <article class="card span-5">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Quote header preview</h3>
+          <p class="panel-copy">This is the profile data ConTech will carry into customer-facing documents.</p>
+        </div>
+      </div>
+      <div class="quote-header-preview">
+        {% if customer.company_logo_filename %}
+          <img class="quote-logo-preview" src="{{ url_for('portal.company_logo') }}" alt="{{ customer.company_name or customer.name }} logo" />
+        {% else %}
+          <div class="quote-logo-placeholder">Logo optional</div>
+        {% endif %}
+        <div>
+          <div class="row-title">{{ customer.company_name or customer.name }}</div>
+          <div class="row-subtitle">{{ customer.company_address or customer.service_address }}</div>
+          <div class="row-subtitle">Updated {{ customer.company_profile_updated_at or 'pending customer setup' }}</div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card span-7">
+      <div class="card-header">
+        <div>
+          <h3 class="panel-title">Profile setup</h3>
+          <p class="panel-copy">Logo is optional. Company or customer name and address are required for clean quote headers.</p>
+        </div>
+      </div>
+      <form class="form-grid two-column-form" method="post" enctype="multipart/form-data">
+        {{ csrf_input() }}
+        <label class="form-field">
+          <span>Your name</span>
+          <input type="text" name="full_name" value="{{ profile.full_name }}" required />
+        </label>
+        <label class="form-field">
+          <span>Email</span>
+          <input type="email" name="email" value="{{ profile.email }}" required />
+        </label>
+        <label class="form-field">
+          <span>Role / title</span>
+          <input type="text" name="role_label" value="{{ profile.role_label }}" placeholder="Owner, AP, Property manager" />
+        </label>
+        <label class="form-field">
+          <span>Phone</span>
+          <input type="tel" name="phone" value="{{ profile.phone }}" />
+        </label>
+        <label class="form-field span-full">
+          <span>Company / customer name for quotes</span>
+          <input type="text" name="company_name" value="{{ profile.company_name }}" required />
+        </label>
+        <label class="form-field span-full">
+          <span>Company / billing address for quotes</span>
+          <textarea name="company_address" rows="3" required>{{ profile.company_address }}</textarea>
+        </label>
+        <label class="form-field span-full">
+          <span>Company logo, if applicable</span>
+          <input type="file" name="company_logo" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" />
+        </label>
+        <div class="form-actions span-full">
+          <button class="action-button accent" type="submit">Save profile</button>
+        </div>
+      </form>
+    </article>
+  </section>
+{% endblock %}

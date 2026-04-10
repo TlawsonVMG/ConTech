@@ -34,6 +34,7 @@ This project includes a `render.yaml` Blueprint for an invite-only ConTech pilot
 - Render uses the database's internal connection string for `DATABASE_URL`.
 - External PostgreSQL access is disabled in the Blueprint with `ipAllowList: []`.
 - Uploaded field documents are stored on the persistent disk under `/var/data/uploads/job-documents`.
+- Uploaded customer/company logos are stored on the persistent disk under `/var/data/uploads/customer-logos`.
 - Customer portal access is invite-only. Staff create portal logins from Customer 360 after signing in to the CRM.
 
 ## Post-Deploy Checks

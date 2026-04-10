@@ -1,7 +1,9 @@
 import io
-import tempfile
+import re
+import shutil
 import unittest
 from pathlib import Path
+from uuid import uuid4
 
 from contech import create_app
 from contech.db import get_db
@@ -9,20 +11,24 @@ from contech.db import get_db
 
 class ConTechAuthAndCrmTests(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.database_path = Path(self.temp_dir.name) / "test.sqlite3"
+        self.temp_root = Path(__file__).resolve().parents[1] / ".test-tmp"
+        self.temp_root.mkdir(exist_ok=True)
+        self.temp_path = self.temp_root / f"test-{uuid4().hex}"
+        self.temp_path.mkdir(parents=True, exist_ok=False)
+        self.database_path = self.temp_path / "test.sqlite3"
         self.app = create_app(
             {
                 "TESTING": True,
                 "SECRET_KEY": "test",
                 "DATABASE": str(self.database_path),
-                "JOB_DOCUMENT_UPLOAD_FOLDER": str(Path(self.temp_dir.name) / "uploads" / "job-documents"),
+                "JOB_DOCUMENT_UPLOAD_FOLDER": str(self.temp_path / "uploads" / "job-documents"),
+                "CUSTOMER_LOGO_UPLOAD_FOLDER": str(self.temp_path / "uploads" / "customer-logos"),
             }
         )
         self.client = self.app.test_client()
 
     def tearDown(self):
-        self.temp_dir.cleanup()
+        shutil.rmtree(self.temp_path, ignore_errors=True)
 
     def login(self, username, password):
         return self.client.post(
@@ -58,20 +64,22 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ready")
         self.assertEqual(payload["database"]["engine"], "sqlite")
         self.assertTrue(payload["database"]["schema_current"])
-        self.assertEqual(payload["database"]["schema_version"], "2026.04.09.customer-portal")
+        self.assertEqual(payload["database"]["schema_version"], "2026.04.10.customer-invites")
         self.assertEqual(payload["checks"]["database_connection"], "ok")
         self.assertTrue(payload["checks"]["uploads_writable"])
 
         with self.app.app_context():
             migration = get_db().execute(
                 "SELECT version FROM schema_migrations WHERE version = ?",
-                ("2026.04.09.customer-portal",),
+                ("2026.04.10.customer-invites",),
             ).fetchone()
         self.assertIsNotNone(migration)
 
     def test_bootstrap_admin_supports_empty_production_database(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database_path = Path(temp_dir) / "bootstrap.sqlite3"
+        temp_path = self.temp_root / f"bootstrap-{uuid4().hex}"
+        temp_path.mkdir(parents=True, exist_ok=False)
+        try:
+            database_path = temp_path / "bootstrap.sqlite3"
             app = create_app(
                 {
                     "TESTING": True,
@@ -82,7 +90,8 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
                     "BOOTSTRAP_ADMIN_USERNAME": "admin",
                     "BOOTSTRAP_ADMIN_PASSWORD": "PilotAdmin!2026",
                     "BOOTSTRAP_ADMIN_FULL_NAME": "Thomas Lawson",
-                    "JOB_DOCUMENT_UPLOAD_FOLDER": str(Path(temp_dir) / "uploads" / "job-documents"),
+                    "JOB_DOCUMENT_UPLOAD_FOLDER": str(temp_path / "uploads" / "job-documents"),
+                    "CUSTOMER_LOGO_UPLOAD_FOLDER": str(temp_path / "uploads" / "customer-logos"),
                 }
             )
             client = app.test_client()
@@ -101,6 +110,8 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
                 customer_count = db.execute("SELECT COUNT(*) AS count FROM customers").fetchone()["count"]
             self.assertEqual(user_count, 1)
             self.assertEqual(customer_count, 0)
+        finally:
+            shutil.rmtree(temp_path, ignore_errors=True)
 
     def test_accounting_user_is_blocked_from_sales_crm_pages(self):
         self.login("accounting", "Ledger!2026")
@@ -344,6 +355,74 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
         self.assertEqual(portal_response.status_code, 200)
         self.assertIn(b"Lopez Residence", portal_response.data)
         self.assertNotIn(b"Morris Residence", portal_response.data)
+
+    def test_customer_invite_profile_setup_populates_quote_header(self):
+        self.login("admin", "ConTech!2026")
+        create_response = self.client.post(
+            "/customers/4/portal-users",
+            data={
+                "full_name": "Maria Lopez",
+                "email": "invite-maria@example.com",
+                "role_label": "Owner",
+                "phone": "(555) 908-3308",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(create_response.status_code, 200)
+        self.assertIn(b"Customer portal invite created", create_response.data)
+        match = re.search(rb'http://localhost(/portal/invite/[^"]+)', create_response.data)
+        self.assertIsNotNone(match)
+        invite_path = match.group(1).decode("utf-8")
+
+        setup_response = self.client.post(
+            invite_path,
+            data={
+                "full_name": "Maria Lopez",
+                "email": "invite-maria@example.com",
+                "role_label": "Owner",
+                "phone": "(555) 908-3308",
+                "company_name": "Lopez Residence LLC",
+                "company_address": "17 Harbor Lane, Elk Grove, CA",
+                "password": "CustomerSetup!2026",
+                "confirm_password": "CustomerSetup!2026",
+                "company_logo": (io.BytesIO(b"customer logo bytes"), "lopez-logo.png"),
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(setup_response.status_code, 200)
+        self.assertIn(b"Your customer portal profile is ready", setup_response.data)
+        self.assertIn(b"Lopez Residence LLC", setup_response.data)
+
+        with self.app.app_context():
+            db = get_db()
+            customer = db.execute(
+                "SELECT company_name, company_address, company_logo_filename FROM customers WHERE id = ?",
+                (4,),
+            ).fetchone()
+            portal_user = db.execute(
+                """
+                SELECT is_active, invite_status, invite_token_hash, profile_completed_at, role_label, phone
+                FROM customer_portal_users
+                WHERE email = ?
+                """,
+                ("invite-maria@example.com",),
+            ).fetchone()
+        self.assertEqual(customer["company_name"], "Lopez Residence LLC")
+        self.assertEqual(customer["company_address"], "17 Harbor Lane, Elk Grove, CA")
+        self.assertTrue(customer["company_logo_filename"].endswith(".png"))
+        self.assertTrue((Path(self.app.config["CUSTOMER_LOGO_UPLOAD_FOLDER"]) / customer["company_logo_filename"]).exists())
+        self.assertEqual(portal_user["is_active"], 1)
+        self.assertEqual(portal_user["invite_status"], "accepted")
+        self.assertIsNone(portal_user["invite_token_hash"])
+        self.assertIsNotNone(portal_user["profile_completed_at"])
+        self.assertEqual(portal_user["role_label"], "Owner")
+        self.assertEqual(portal_user["phone"], "(555) 908-3308")
+
+        self.client.post("/portal/logout", follow_redirects=True)
+        self.login("admin", "ConTech!2026")
+        quotes_response = self.client.get("/quotes")
+        self.assertEqual(quotes_response.status_code, 200)
+        self.assertIn(b"Header: Lopez Residence LLC", quotes_response.data)
 
     def test_customer_lead_opportunity_quote_job_invoice_workflow(self):
         self.login("admin", "ConTech!2026")

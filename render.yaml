@@ -37,6 +37,8 @@ services:
         value: /var/data/uploads
       - key: JOB_DOCUMENT_UPLOAD_FOLDER
         value: /var/data/uploads/job-documents
+      - key: CUSTOMER_LOGO_UPLOAD_FOLDER
+        value: /var/data/uploads/customer-logos
       - key: BOOTSTRAP_ADMIN_USERNAME
         value: admin
       - key: BOOTSTRAP_ADMIN_FULL_NAME

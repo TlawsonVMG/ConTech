@@ -45,6 +45,13 @@
                 <span class="nav-copy">Account security</span>
               </span>
             </a>
+            <a class="nav-button {% if request.endpoint == 'portal.profile' %}active{% endif %}" href="{{ url_for('portal.profile') }}">
+              <span class="nav-icon">PR</span>
+              <span>
+                <span class="nav-title">Profile</span>
+                <span class="nav-copy">Quote header</span>
+              </span>
+            </a>
           </div>
         </nav>
 

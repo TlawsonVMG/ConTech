@@ -48,6 +48,12 @@
               </td>
               <td>
                 <div class="row-title">{{ quote.customer_name }}</div>
+                <div class="row-subtitle">Header: {{ quote.company_name or quote.customer_name }}</div>
+                {% if quote.company_address %}
+                  <div class="row-subtitle">{{ quote.company_address }}</div>
+                {% else %}
+                  <div class="row-subtitle">Quote header profile pending</div>
+                {% endif %}
                 <div class="row-subtitle"><a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=quote.customer_id) }}">Customer 360</a></div>
               </td>
               <td>{{ quote.status }}</td>

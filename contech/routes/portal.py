@@ -2,13 +2,17 @@ from datetime import UTC, datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 from ..db import get_db
+from ..invites import hash_invite_token
 
 bp = Blueprint("portal", __name__, url_prefix="/portal")
+CUSTOMER_LOGO_UPLOAD_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
 
 def _current_timestamp():
@@ -29,11 +33,89 @@ def _is_safe_next_url(next_url):
     return parsed.scheme == "" and parsed.netloc == "" and next_url.startswith("/portal")
 
 
+def _timestamp_is_expired(value):
+    if not value:
+        return True
+    try:
+        return datetime.fromisoformat(value) < datetime.now()
+    except ValueError:
+        return True
+
+
+def _profile_form_data(form):
+    return {
+        "full_name": form.get("full_name", "").strip(),
+        "email": form.get("email", "").strip().lower(),
+        "role_label": form.get("role_label", "").strip(),
+        "phone": form.get("phone", "").strip(),
+        "company_name": form.get("company_name", "").strip(),
+        "company_address": form.get("company_address", "").strip(),
+        "password": form.get("password", ""),
+        "confirm_password": form.get("confirm_password", ""),
+    }
+
+
+def _validate_profile_form(data, require_password=False, portal_user_id=None):
+    errors = []
+    if not data["full_name"]:
+        errors.append("Your name is required.")
+    if not data["email"] or "@" not in data["email"]:
+        errors.append("A valid email address is required.")
+    if not data["company_name"]:
+        errors.append("Company or customer name is required for quote headers.")
+    if not data["company_address"]:
+        errors.append("Company or billing address is required for quote headers.")
+    if require_password and len(data["password"]) < 10:
+        errors.append("Password must be at least 10 characters.")
+    if require_password and data["password"] != data["confirm_password"]:
+        errors.append("Password confirmation did not match.")
+    if data["email"]:
+        query = "SELECT id FROM customer_portal_users WHERE email = ?"
+        params = [data["email"]]
+        if portal_user_id is not None:
+            query += " AND id != ?"
+            params.append(portal_user_id)
+        existing = get_db().execute(query, params).fetchone()
+        if existing:
+            errors.append("That email is already tied to another customer portal user.")
+    return errors
+
+
+def _save_customer_logo(upload):
+    if upload is None or not upload.filename:
+        return None, None
+
+    filename = secure_filename(upload.filename)
+    extension = Path(filename).suffix.lower()
+    if extension not in CUSTOMER_LOGO_UPLOAD_EXTENSIONS:
+        return None, "Logo must be a JPG, PNG, WEBP, or GIF image."
+
+    stored_file_name = f"{uuid4().hex}{extension}"
+    upload_dir = Path(current_app.config["CUSTOMER_LOGO_UPLOAD_FOLDER"])
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    upload.save(upload_dir / stored_file_name)
+    return stored_file_name, None
+
+
+def _fetch_invite(token):
+    return get_db().execute(
+        """
+        SELECT cpu.*, c.name AS customer_name, c.company_name, c.company_address,
+               c.company_logo_filename
+        FROM customer_portal_users cpu
+        JOIN customers c ON c.id = cpu.customer_id
+        WHERE cpu.invite_token_hash = ? AND cpu.invite_status = ?
+        """,
+        (hash_invite_token(token), "pending"),
+    ).fetchone()
+
+
 def _fetch_portal_user(portal_user_id):
     return get_db().execute(
         """
         SELECT cpu.*, c.name AS customer_name, c.segment, c.service_address, c.primary_contact,
-               c.phone AS customer_phone, c.email AS customer_email, c.trade_mix, c.status AS customer_status
+               c.phone AS customer_phone, c.email AS customer_email, c.trade_mix, c.status AS customer_status,
+               c.company_name, c.company_address, c.company_logo_filename, c.company_profile_updated_at
         FROM customer_portal_users cpu
         JOIN customers c ON c.id = cpu.customer_id
         WHERE cpu.id = ?
@@ -156,6 +238,113 @@ def login():
     return render_template("portal/login.html")
 
 
+@bp.route("/invite/<token>", methods=("GET", "POST"))
+def invite(token):
+    if g.get("customer_portal_user") is not None:
+        return redirect(url_for("portal.dashboard"))
+
+    invite_record = _fetch_invite(token)
+    if invite_record is None or _timestamp_is_expired(invite_record["invite_expires_at"]):
+        return render_template("portal/invite.html", invite_record=None, setup={}, token=token), 404
+
+    setup = {
+        "full_name": invite_record["full_name"],
+        "email": invite_record["email"],
+        "role_label": invite_record["role_label"] or "",
+        "phone": invite_record["phone"] or "",
+        "company_name": invite_record["company_name"] or invite_record["customer_name"],
+        "company_address": invite_record["company_address"] or "",
+    }
+
+    if request.method == "POST":
+        setup = _profile_form_data(request.form)
+        errors = _validate_profile_form(setup, require_password=True, portal_user_id=invite_record["id"])
+        logo_filename, logo_error = _save_customer_logo(request.files.get("company_logo"))
+        if logo_error:
+            errors.append(logo_error)
+
+        if not errors:
+            now = _current_timestamp()
+            db = get_db()
+            if logo_filename:
+                db.execute(
+                    """
+                    UPDATE customers
+                    SET company_name = ?, company_address = ?, company_logo_filename = ?,
+                        company_profile_updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        setup["company_name"],
+                        setup["company_address"],
+                        logo_filename,
+                        now,
+                        invite_record["customer_id"],
+                    ),
+                )
+            else:
+                db.execute(
+                    """
+                    UPDATE customers
+                    SET company_name = ?, company_address = ?, company_profile_updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        setup["company_name"],
+                        setup["company_address"],
+                        now,
+                        invite_record["customer_id"],
+                    ),
+                )
+
+            db.execute(
+                """
+                UPDATE customer_portal_users
+                SET email = ?, full_name = ?, role_label = ?, phone = ?, password_hash = ?,
+                    is_active = 1, invite_token_hash = NULL, invite_status = ?, invite_accepted_at = ?,
+                    profile_completed_at = ?
+                WHERE id = ?
+                """,
+                (
+                    setup["email"],
+                    setup["full_name"],
+                    setup["role_label"],
+                    setup["phone"],
+                    generate_password_hash(setup["password"]),
+                    "accepted",
+                    now,
+                    now,
+                    invite_record["id"],
+                ),
+            )
+            db.execute(
+                """
+                INSERT INTO activity_feed (branch_id, customer_id, activity_date, activity_type, owner_name, title, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    invite_record["branch_id"],
+                    invite_record["customer_id"],
+                    now,
+                    "System",
+                    setup["full_name"],
+                    "Customer portal profile completed",
+                    f"{setup['company_name']} profile information was added for quote headers.",
+                ),
+            )
+            db.commit()
+            session.clear()
+            session.permanent = True
+            session["customer_portal_user_id"] = invite_record["id"]
+            flash("Your customer portal profile is ready.", "success")
+            return redirect(url_for("portal.dashboard"))
+
+        for error in errors:
+            flash(error, "error")
+
+    return render_template("portal/invite.html", invite_record=invite_record, setup=setup, token=token)
+
+
 @bp.post("/logout")
 @customer_portal_login_required
 def logout():
@@ -263,6 +452,116 @@ def _portal_dashboard_payload(customer_id):
 def dashboard():
     payload = _portal_dashboard_payload(g.customer_portal_user["customer_id"])
     return render_template("portal/dashboard.html", **payload)
+
+
+@bp.route("/profile", methods=("GET", "POST"))
+@customer_portal_login_required
+def profile():
+    customer = get_db().execute("SELECT * FROM customers WHERE id = ?", (g.customer_portal_user["customer_id"],)).fetchone()
+    profile_data = {
+        "full_name": g.customer_portal_user["full_name"],
+        "email": g.customer_portal_user["email"],
+        "role_label": g.customer_portal_user["role_label"] or "",
+        "phone": g.customer_portal_user["phone"] or "",
+        "company_name": customer["company_name"] or customer["name"],
+        "company_address": customer["company_address"] or customer["service_address"],
+    }
+
+    if request.method == "POST":
+        profile_data = _profile_form_data(request.form)
+        errors = _validate_profile_form(profile_data, portal_user_id=g.customer_portal_user["id"])
+        logo_filename, logo_error = _save_customer_logo(request.files.get("company_logo"))
+        if logo_error:
+            errors.append(logo_error)
+
+        if not errors:
+            now = _current_timestamp()
+            db = get_db()
+            if logo_filename:
+                db.execute(
+                    """
+                    UPDATE customers
+                    SET company_name = ?, company_address = ?, company_logo_filename = ?,
+                        company_profile_updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        profile_data["company_name"],
+                        profile_data["company_address"],
+                        logo_filename,
+                        now,
+                        g.customer_portal_user["customer_id"],
+                    ),
+                )
+            else:
+                db.execute(
+                    """
+                    UPDATE customers
+                    SET company_name = ?, company_address = ?, company_profile_updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        profile_data["company_name"],
+                        profile_data["company_address"],
+                        now,
+                        g.customer_portal_user["customer_id"],
+                    ),
+                )
+            db.execute(
+                """
+                UPDATE customer_portal_users
+                SET email = ?, full_name = ?, role_label = ?, phone = ?, profile_completed_at = COALESCE(profile_completed_at, ?)
+                WHERE id = ?
+                """,
+                (
+                    profile_data["email"],
+                    profile_data["full_name"],
+                    profile_data["role_label"],
+                    profile_data["phone"],
+                    now,
+                    g.customer_portal_user["id"],
+                ),
+            )
+            db.execute(
+                """
+                INSERT INTO activity_feed (branch_id, customer_id, activity_date, activity_type, owner_name, title, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    g.customer_portal_user["branch_id"],
+                    g.customer_portal_user["customer_id"],
+                    now,
+                    "System",
+                    profile_data["full_name"],
+                    "Customer portal profile updated",
+                    f"{profile_data['company_name']} quote header information was updated.",
+                ),
+            )
+            db.commit()
+            flash("Profile and quote header information updated.", "success")
+            return redirect(url_for("portal.profile"))
+
+        for error in errors:
+            flash(error, "error")
+
+    return render_template("portal/profile.html", customer=customer, profile=profile_data)
+
+
+@bp.get("/company-logo")
+@customer_portal_login_required
+def company_logo():
+    customer = get_db().execute(
+        "SELECT company_logo_filename FROM customers WHERE id = ?",
+        (g.customer_portal_user["customer_id"],),
+    ).fetchone()
+    if customer is None or not customer["company_logo_filename"]:
+        abort(404)
+
+    logo_dir = Path(current_app.config["CUSTOMER_LOGO_UPLOAD_FOLDER"])
+    logo_path = logo_dir / customer["company_logo_filename"]
+    if not logo_path.exists():
+        abort(404)
+    return send_from_directory(logo_dir, customer["company_logo_filename"])
 
 
 @bp.post("/messages")

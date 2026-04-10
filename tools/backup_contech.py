@@ -79,7 +79,7 @@ def _backup_sqlite(database_path, backup_dir):
 
 def _zip_uploads(upload_path, backup_dir):
     upload_root = Path(upload_path)
-    zip_path = backup_dir / "job-document-uploads.zip"
+    zip_path = backup_dir / "uploads.zip"
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
         if upload_root.exists():
@@ -99,7 +99,7 @@ def _write_manifest(backup_dir, database_artifact, upload_artifact):
                 f"Created at: {datetime.now().isoformat(timespec='seconds')}",
                 f"Database artifact: {database_artifact.name}",
                 f"Upload artifact: {upload_artifact.name}",
-                "Restore note: restore the database dump first, then unzip uploads into instance/uploads/job-documents.",
+                "Restore note: restore the database dump first, then unzip uploads into instance/uploads.",
             ]
         )
         + "\n",
@@ -115,8 +115,8 @@ def main():
     parser.add_argument("--sqlite-path", default=None, help="Override the SQLite database path when not using PostgreSQL.")
     parser.add_argument(
         "--uploads",
-        default=str(PROJECT_ROOT / "instance" / "uploads" / "job-documents"),
-        help="Job-document uploads directory to archive.",
+        default=str(PROJECT_ROOT / "instance" / "uploads"),
+        help="Uploads directory to archive, including job documents and customer logos.",
     )
     args = parser.parse_args()
 

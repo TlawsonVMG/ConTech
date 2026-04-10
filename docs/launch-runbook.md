@@ -22,7 +22,7 @@ Then open:
 
 ## Backup
 
-Create a database and job-document backup before every launch deploy:
+Create a database and uploads backup before every launch deploy:
 
 ```powershell
 .venv\Scripts\python tools\backup_contech.py
@@ -38,13 +38,15 @@ After deploy or restart:
 2. Sign in as an admin account.
 3. Open Customer 360 for a seeded or test account.
 4. Create a test internal note and task.
-5. Create one customer portal login with a temporary password.
-6. Open `/portal/login` in a separate browser session and confirm that customer sees only their own quotes, jobs, deliveries, invoices, documents, contacts, and messages.
-7. Send one portal message and confirm it appears on that Customer 360 record.
-8. Open quotes, jobs, purchasing, dispatch, invoices, and feedback inbox.
-9. Submit one `/pilot-feedback` test item from a separate browser session.
-10. Confirm the feedback appears in `/feedback/inbox`.
-11. Upload and download a small job-document test file if the pilot host has persistent storage mounted.
+5. Create one customer portal invite and copy the setup link.
+6. Open the invite link in a separate browser session, create the customer password, and add company name, address, and logo if applicable.
+7. Confirm `/portal/login` works and the customer sees only their own quotes, jobs, deliveries, invoices, documents, contacts, and messages.
+8. Confirm the Customer 360 quote header profile shows the company name, address, and logo status.
+9. Send one portal message and confirm it appears on that Customer 360 record.
+10. Open quotes, jobs, purchasing, dispatch, invoices, and feedback inbox.
+11. Submit one `/pilot-feedback` test item from a separate browser session.
+12. Confirm the feedback appears in `/feedback/inbox`.
+13. Upload and download a small job-document test file if the pilot host has persistent storage mounted.
 
 ## Pilot Feedback Loop
 
@@ -63,7 +65,7 @@ If the pilot app becomes unstable:
 2. Keep the newest `backups/contech-*` folder untouched.
 3. Revert the app code to the last known working version.
 4. Restore the PostgreSQL dump to a clean database.
-5. Unzip `job-document-uploads.zip` back into `instance/uploads/job-documents/`.
+5. Unzip `uploads.zip` back into `instance/uploads/`.
 6. Restart the app and verify `/api/ready`.
 
 Do not delete the broken database until the replacement has been verified.

@@ -98,7 +98,9 @@ Notes:
 - Customer portal sign-in: `/portal/login`
 - Staff create and manage customer portal logins from each Customer 360 record
 - Customer portal accounts are invite-only and scoped to one customer record
+- New customers can use one-time setup links to create their password and add quote header profile details
 - Portal users can review their own quotes, jobs, deliveries, invoices, job documents, contacts, and portal messages
+- Customer/company logos are stored in `CUSTOMER_LOGO_UPLOAD_FOLDER`
 - Render production seeds no demo portal accounts when `SEED_DEMO_DATA=false`
 
 ### Operational checks and backups
@@ -132,6 +134,7 @@ Backup artifacts are written under `backups/`, which is intentionally ignored by
 ## Field execution uploads
 
 - Job-document uploads are stored under `instance\uploads\job-documents\`
+- Customer logo uploads are stored under `instance\uploads\customer-logos\`
 - Change orders now keep revision history each time they are created or edited
 - Uploaded field files are limited to 16 MB through the Flask app config
 

@@ -18,6 +18,20 @@
           <p class="panel-copy">{{ quote.option_name }} / {{ quote.description }}</p>
         </div>
       </div>
+      {% if quote_customer %}
+        <div class="quote-header-preview">
+          {% if quote_customer.company_logo_filename %}
+            <img class="quote-logo-preview" src="{{ url_for('crm.customers_logo', customer_id=quote_customer.id) }}" alt="{{ quote_customer.company_name or quote_customer.name }} logo" />
+          {% else %}
+            <div class="quote-logo-placeholder">Logo optional</div>
+          {% endif %}
+          <div>
+            <div class="row-title">{{ quote_customer.company_name or quote_customer.name }}</div>
+            <div class="row-subtitle">{{ quote_customer.company_address or quote_customer.service_address }}</div>
+            <div class="row-subtitle">Quote header source</div>
+          </div>
+        </div>
+      {% endif %}
       <div class="mini-stat-grid">
         <div class="mini-stat">
           <span class="metric-label">Amount</span>

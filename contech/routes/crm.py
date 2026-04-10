@@ -3,12 +3,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 
 from ..auth import login_required, roles_required
 from ..db import get_db
+from ..invites import generate_invite_token, hash_invite_token
 from ..services.bootstrap import build_bootstrap_payload
 
 bp = Blueprint("crm", __name__)
@@ -73,6 +74,7 @@ JOB_DOCUMENT_TYPES = ("Photo", "Permit", "Inspection", "Material Receipt", "Cont
 JOB_DOCUMENT_STATUSES = ("Logged", "Pending Review", "Approved", "Closed")
 INVOICE_BILLING_TYPES = ("Standard", "Deposit", "Progress", "Change Order", "Retainage Release", "Final")
 JOB_DOCUMENT_UPLOAD_EXTENSIONS = (".jpg", ".jpeg", ".png", ".pdf", ".txt", ".csv", ".doc", ".docx", ".xls", ".xlsx")
+PORTAL_INVITE_EXPIRATION_DAYS = 14
 PORTAL_MESSAGE_STATUSES = ("new", "in_review", "closed")
 
 
@@ -228,6 +230,8 @@ def _portal_access_form_data(form):
     return {
         "full_name": form.get("full_name", "").strip(),
         "email": form.get("email", "").strip().lower(),
+        "role_label": form.get("role_label", "").strip(),
+        "phone": form.get("phone", "").strip(),
         "password": form.get("password", ""),
         "is_active": _checkbox_value(form, "is_active"),
     }
@@ -251,6 +255,27 @@ def _validate_portal_access_form(data, require_password=True, exclude_user_id=No
         if existing:
             errors.append("That portal email is already tied to another customer portal user.")
     return errors
+
+
+def _portal_invite_window():
+    sent_at = datetime.now()
+    expires_at = sent_at + timedelta(days=PORTAL_INVITE_EXPIRATION_DAYS)
+    return sent_at.strftime("%Y-%m-%d %H:%M"), expires_at.strftime("%Y-%m-%d %H:%M")
+
+
+def _create_portal_invite(db, portal_user_id):
+    token = generate_invite_token()
+    sent_at, expires_at = _portal_invite_window()
+    db.execute(
+        """
+        UPDATE customer_portal_users
+        SET invite_token_hash = ?, invite_status = ?, invite_sent_at = ?, invite_expires_at = ?,
+            invite_accepted_at = NULL
+        WHERE id = ?
+        """,
+        (hash_invite_token(token), "pending", sent_at, expires_at, portal_user_id),
+    )
+    return token, expires_at
 
 
 def _lead_form_data(form):
@@ -1500,9 +1525,12 @@ def customers_detail(customer_id):
         """,
         (customer_id,),
     ).fetchall()
+    portal_invite_link = session.pop("customer_portal_invite_link", None)
+    portal_invite_expires_at = session.pop("customer_portal_invite_expires_at", None)
     portal_users = db.execute(
         """
-        SELECT id, full_name, email, is_active, created_at, last_login_at
+        SELECT id, full_name, email, role_label, phone, is_active, created_at, last_login_at,
+               invite_status, invite_sent_at, invite_expires_at, invite_accepted_at, profile_completed_at
         FROM customer_portal_users
         WHERE customer_id = ?
         ORDER BY is_active DESC, full_name
@@ -1658,6 +1686,8 @@ def customers_detail(customer_id):
         customer=customer,
         summary=summary,
         contacts=contacts,
+        portal_invite_link=portal_invite_link,
+        portal_invite_expires_at=portal_invite_expires_at,
         portal_users=portal_users,
         portal_messages=portal_messages,
         leads=leads,
@@ -1685,6 +1715,20 @@ def customers_detail(customer_id):
         calendar_statuses=CALENDAR_EVENT_STATUSES,
         portal_message_statuses=PORTAL_MESSAGE_STATUSES,
     )
+
+
+@bp.get("/customers/<int:customer_id>/logo")
+@roles_required(*ALL_APP_ROLES)
+def customers_logo(customer_id):
+    customer = _fetch_customer(customer_id)
+    if customer is None or not customer["company_logo_filename"]:
+        abort(404)
+
+    logo_dir = Path(current_app.config["CUSTOMER_LOGO_UPLOAD_FOLDER"])
+    logo_path = logo_dir / customer["company_logo_filename"]
+    if not logo_path.exists():
+        abort(404)
+    return send_from_directory(logo_dir, customer["company_logo_filename"])
 
 
 @bp.post("/customers/<int:customer_id>/notes")
@@ -2049,39 +2093,58 @@ def customer_portal_users_create(customer_id):
         abort(404)
 
     data = _portal_access_form_data(request.form)
-    errors = _validate_portal_access_form(data)
+    is_invite = not data["password"]
+    errors = _validate_portal_access_form(data, require_password=not is_invite)
     if errors:
         for error in errors:
             flash(error, "error")
         return redirect(url_for("crm.customers_detail", customer_id=customer_id))
 
     db = get_db()
-    db.execute(
+    invite_token = generate_invite_token() if is_invite else None
+    sent_at, expires_at = _portal_invite_window() if is_invite else (None, None)
+    portal_user_id = db.insert(
         """
         INSERT INTO customer_portal_users (
-            branch_id, customer_id, email, password_hash, full_name, is_active, created_at, last_login_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            branch_id, customer_id, email, password_hash, full_name, role_label, phone,
+            is_active, created_at, last_login_at, invite_token_hash, invite_status,
+            invite_sent_at, invite_expires_at, invite_accepted_at, profile_completed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             customer["branch_id"],
             customer_id,
             data["email"],
-            generate_password_hash(data["password"]),
+            generate_password_hash(data["password"] or generate_invite_token()),
             data["full_name"],
-            data["is_active"],
+            data["role_label"],
+            data["phone"],
+            0 if is_invite else data["is_active"],
             datetime.now().strftime("%Y-%m-%d %H:%M"),
+            None,
+            hash_invite_token(invite_token) if invite_token else None,
+            "pending" if is_invite else "accepted",
+            sent_at,
+            expires_at,
+            None,
             None,
         ),
     )
+    if is_invite:
+        session["customer_portal_invite_link"] = url_for("portal.invite", token=invite_token, _external=True)
+        session["customer_portal_invite_expires_at"] = expires_at
     _create_activity(
         customer_id,
         "System",
         g.user["full_name"] if g.get("user") else "System",
-        f"Portal access created: {data['full_name']}",
-        f"Customer portal login issued for {data['email']}.",
+        f"Portal invite created: {data['full_name']}",
+        f"Customer portal invite prepared for {data['email']}." if is_invite else f"Customer portal login issued for {data['email']}.",
     )
     db.commit()
-    flash("Customer portal access created.", "success")
+    if is_invite:
+        flash("Customer portal invite created. Copy the setup link and send it to the customer.", "success")
+    else:
+        flash("Customer portal access created.", "success")
     return redirect(url_for("crm.customers_detail", customer_id=customer_id))
 
 
@@ -2105,14 +2168,19 @@ def customer_portal_users_update(portal_user_id):
         db.execute(
             """
             UPDATE customer_portal_users
-            SET full_name = ?, email = ?, password_hash = ?, is_active = ?
+            SET full_name = ?, email = ?, role_label = ?, phone = ?, password_hash = ?, is_active = ?,
+                invite_token_hash = NULL, invite_status = ?, invite_accepted_at = COALESCE(invite_accepted_at, ?)
             WHERE id = ?
             """,
             (
                 data["full_name"],
                 data["email"],
+                data["role_label"],
+                data["phone"],
                 generate_password_hash(data["password"]),
                 data["is_active"],
+                "accepted",
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
                 portal_user_id,
             ),
         )
@@ -2121,10 +2189,10 @@ def customer_portal_users_update(portal_user_id):
         db.execute(
             """
             UPDATE customer_portal_users
-            SET full_name = ?, email = ?, is_active = ?
+            SET full_name = ?, email = ?, role_label = ?, phone = ?, is_active = ?
             WHERE id = ?
             """,
-            (data["full_name"], data["email"], data["is_active"], portal_user_id),
+            (data["full_name"], data["email"], data["role_label"], data["phone"], data["is_active"], portal_user_id),
         )
         change_note = "Portal access updated."
 
@@ -2137,6 +2205,29 @@ def customer_portal_users_update(portal_user_id):
     )
     db.commit()
     flash(change_note, "success")
+    return redirect(url_for("crm.customers_detail", customer_id=portal_user["customer_id"]))
+
+
+@bp.post("/customer-portal-users/<int:portal_user_id>/invite")
+@roles_required(*CRM_ROLES)
+def customer_portal_users_invite(portal_user_id):
+    portal_user = _fetch_customer_portal_user(portal_user_id)
+    if portal_user is None:
+        abort(404)
+
+    db = get_db()
+    token, expires_at = _create_portal_invite(db, portal_user_id)
+    _create_activity(
+        portal_user["customer_id"],
+        "System",
+        g.user["full_name"] if g.get("user") else "System",
+        f"Portal invite refreshed: {portal_user['full_name']}",
+        f"Customer portal setup link refreshed for {portal_user['email']}.",
+    )
+    db.commit()
+    session["customer_portal_invite_link"] = url_for("portal.invite", token=token, _external=True)
+    session["customer_portal_invite_expires_at"] = expires_at
+    flash("Customer portal setup link refreshed. Copy the new link and send it to the customer.", "success")
     return redirect(url_for("crm.customers_detail", customer_id=portal_user["customer_id"]))
 
 
@@ -2653,7 +2744,8 @@ def quotes_index():
     status = request.args.get("status", "").strip()
     params = []
     sql = """
-        SELECT q.*, c.name AS customer_name, o.name AS opportunity_name
+        SELECT q.*, c.name AS customer_name, c.company_name, c.company_address,
+               c.company_logo_filename, o.name AS opportunity_name
         FROM quotes q
         JOIN customers c ON c.id = q.customer_id
         LEFT JOIN opportunities o ON o.id = q.opportunity_id
@@ -2819,6 +2911,7 @@ def quotes_contract(quote_id):
     quote = _fetch_quote(quote_id)
     if quote is None:
         abort(404)
+    quote_customer = _fetch_customer(quote["customer_id"])
 
     contract = {
         "signed_date": quote["signed_date"],
@@ -2886,7 +2979,7 @@ def quotes_contract(quote_id):
         for error in errors:
             flash(error, "error")
 
-    return render_template("quotes/contract.html", quote=quote, contract=contract)
+    return render_template("quotes/contract.html", quote=quote, quote_customer=quote_customer, contract=contract)
 
 
 @bp.post("/quotes/<int:quote_id>/delete")
