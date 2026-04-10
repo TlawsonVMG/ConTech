@@ -127,13 +127,25 @@ def _checkbox_value(form, key):
     return 1 if form.get(key) == "on" else 0
 
 
+def _current_branch_id():
+    user = g.get("user")
+    return user["branch_id"] if user is not None else 1
+
+
+def _branch_conditions(alias=None):
+    prefix = f"{alias}." if alias else ""
+    return f"{prefix}branch_id = ?"
+
+
 def _customer_choices():
     return get_db().execute(
         """
         SELECT id, name, segment
         FROM customers
+        WHERE branch_id = ?
         ORDER BY name
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -142,9 +154,10 @@ def _sales_rep_choices():
         """
         SELECT username, full_name
         FROM users
-        WHERE role_name IN ('admin', 'sales') AND is_active = 1
+        WHERE branch_id = ? AND role_name IN ('admin', 'sales') AND is_active = 1
         ORDER BY full_name
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
     return [
         {
@@ -161,9 +174,10 @@ def _owner_choices():
         """
         SELECT username, full_name, role_name
         FROM users
-        WHERE is_active = 1
+        WHERE branch_id = ? AND is_active = 1
         ORDER BY full_name
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -172,8 +186,10 @@ def _lead_choices():
         """
         SELECT id, source, trade_interest, stage, assigned_rep
         FROM leads
+        WHERE branch_id = ?
         ORDER BY id DESC
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -905,75 +921,75 @@ def _validate_calendar_form(data):
 
 
 def _fetch_customer(customer_id):
-    return get_db().execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
+    return get_db().execute("SELECT * FROM customers WHERE id = ? AND branch_id = ?", (customer_id, _current_branch_id())).fetchone()
 
 
 def _fetch_customer_contact(contact_id):
-    return get_db().execute("SELECT * FROM customer_contacts WHERE id = ?", (contact_id,)).fetchone()
+    return get_db().execute("SELECT * FROM customer_contacts WHERE id = ? AND branch_id = ?", (contact_id, _current_branch_id())).fetchone()
 
 
 def _fetch_customer_portal_user(portal_user_id):
-    return get_db().execute("SELECT * FROM customer_portal_users WHERE id = ?", (portal_user_id,)).fetchone()
+    return get_db().execute("SELECT * FROM customer_portal_users WHERE id = ? AND branch_id = ?", (portal_user_id, _current_branch_id())).fetchone()
 
 
 def _fetch_lead(lead_id):
-    return get_db().execute("SELECT * FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    return get_db().execute("SELECT * FROM leads WHERE id = ? AND branch_id = ?", (lead_id, _current_branch_id())).fetchone()
 
 
 def _fetch_opportunity(opportunity_id):
-    return get_db().execute("SELECT * FROM opportunities WHERE id = ?", (opportunity_id,)).fetchone()
+    return get_db().execute("SELECT * FROM opportunities WHERE id = ? AND branch_id = ?", (opportunity_id, _current_branch_id())).fetchone()
 
 
 def _fetch_quote(quote_id):
-    return get_db().execute("SELECT * FROM quotes WHERE id = ?", (quote_id,)).fetchone()
+    return get_db().execute("SELECT * FROM quotes WHERE id = ? AND branch_id = ?", (quote_id, _current_branch_id())).fetchone()
 
 
 def _fetch_job(job_id):
-    return get_db().execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    return get_db().execute("SELECT * FROM jobs WHERE id = ? AND branch_id = ?", (job_id, _current_branch_id())).fetchone()
 
 
 def _fetch_change_order(change_order_id):
-    return get_db().execute("SELECT * FROM change_orders WHERE id = ?", (change_order_id,)).fetchone()
+    return get_db().execute("SELECT * FROM change_orders WHERE id = ? AND branch_id = ?", (change_order_id, _current_branch_id())).fetchone()
 
 
 def _fetch_invoice(invoice_id):
-    return get_db().execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+    return get_db().execute("SELECT * FROM invoices WHERE id = ? AND branch_id = ?", (invoice_id, _current_branch_id())).fetchone()
 
 
 def _fetch_inventory_item(item_id):
-    return get_db().execute("SELECT * FROM inventory_items WHERE id = ?", (item_id,)).fetchone()
+    return get_db().execute("SELECT * FROM inventory_items WHERE id = ? AND branch_id = ?", (item_id, _current_branch_id())).fetchone()
 
 
 def _fetch_job_material(material_id):
-    return get_db().execute("SELECT * FROM job_materials WHERE id = ?", (material_id,)).fetchone()
+    return get_db().execute("SELECT * FROM job_materials WHERE id = ? AND branch_id = ?", (material_id, _current_branch_id())).fetchone()
 
 
 def _fetch_job_document(document_id):
-    return get_db().execute("SELECT * FROM job_documents WHERE id = ?", (document_id,)).fetchone()
+    return get_db().execute("SELECT * FROM job_documents WHERE id = ? AND branch_id = ?", (document_id, _current_branch_id())).fetchone()
 
 
 def _fetch_delivery(delivery_id):
-    return get_db().execute("SELECT * FROM deliveries WHERE id = ?", (delivery_id,)).fetchone()
+    return get_db().execute("SELECT * FROM deliveries WHERE id = ? AND branch_id = ?", (delivery_id, _current_branch_id())).fetchone()
 
 
 def _fetch_purchase_request(request_id):
-    return get_db().execute("SELECT * FROM purchase_requests WHERE id = ?", (request_id,)).fetchone()
+    return get_db().execute("SELECT * FROM purchase_requests WHERE id = ? AND branch_id = ?", (request_id, _current_branch_id())).fetchone()
 
 
 def _fetch_job_cost_entry(cost_id):
-    return get_db().execute("SELECT * FROM job_cost_entries WHERE id = ?", (cost_id,)).fetchone()
+    return get_db().execute("SELECT * FROM job_cost_entries WHERE id = ? AND branch_id = ?", (cost_id, _current_branch_id())).fetchone()
 
 
 def _fetch_task(task_id):
-    return get_db().execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    return get_db().execute("SELECT * FROM tasks WHERE id = ? AND branch_id = ?", (task_id, _current_branch_id())).fetchone()
 
 
 def _fetch_email_message(message_id):
-    return get_db().execute("SELECT * FROM email_messages WHERE id = ?", (message_id,)).fetchone()
+    return get_db().execute("SELECT * FROM email_messages WHERE id = ? AND branch_id = ?", (message_id, _current_branch_id())).fetchone()
 
 
 def _fetch_calendar_event(event_id):
-    return get_db().execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
+    return get_db().execute("SELECT * FROM calendar_events WHERE id = ? AND branch_id = ?", (event_id, _current_branch_id())).fetchone()
 
 
 def _opportunity_choices():
@@ -981,8 +997,10 @@ def _opportunity_choices():
         """
         SELECT id, name, subtitle, customer_id
         FROM opportunities
+        WHERE branch_id = ?
         ORDER BY priority DESC, close_date ASC
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -992,8 +1010,10 @@ def _quote_choices():
         SELECT q.id, q.quote_number, q.option_name, q.amount, c.name AS customer_name
         FROM quotes q
         JOIN customers c ON c.id = q.customer_id
+        WHERE q.branch_id = ?
         ORDER BY q.id DESC
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -1003,8 +1023,10 @@ def _job_choices():
         SELECT j.id, j.name, j.scope, c.name AS customer_name
         FROM jobs j
         JOIN customers c ON c.id = j.customer_id
+        WHERE j.branch_id = ?
         ORDER BY j.id DESC
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -1018,6 +1040,8 @@ def _change_order_choices(job_id=None, customer_id=None, approved_only=False, bi
         JOIN jobs j ON j.id = co.job_id
         JOIN customers c ON c.id = co.customer_id
     """
+    conditions.append("co.branch_id = ?")
+    params.append(_current_branch_id())
     if job_id is not None:
         conditions.append("co.job_id = ?")
         params.append(job_id)
@@ -1039,8 +1063,10 @@ def _vendor_choices():
         """
         SELECT id, name, category
         FROM vendors
+        WHERE branch_id = ?
         ORDER BY name
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -1049,8 +1075,10 @@ def _bank_account_choices():
         """
         SELECT id, account_name, account_type
         FROM bank_accounts
+        WHERE branch_id = ?
         ORDER BY account_name
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
@@ -1061,13 +1089,18 @@ def _inventory_item_choices():
                v.name AS vendor_name
         FROM inventory_items i
         LEFT JOIN vendors v ON v.id = i.vendor_id
+        WHERE i.branch_id = ?
         ORDER BY i.category, i.item_name
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
 
 def _next_document_number(prefix, table_name, column_name):
-    row = get_db().execute(f"SELECT COALESCE(MAX(id), 0) AS max_id FROM {table_name}").fetchone()
+    row = get_db().execute(
+        f"SELECT COALESCE(MAX(id), 0) AS max_id FROM {table_name} WHERE branch_id = ?",
+        (_current_branch_id(),),
+    ).fetchone()
     return f"{prefix}-{1000 + row['max_id'] + 1}"
 
 
@@ -1147,7 +1180,7 @@ def _record_change_order_version(change_order_id, changed_by, change_summary):
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
+            _current_branch_id(),
             change_order_id,
             next_version,
             datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -1217,7 +1250,7 @@ def _create_activity(customer_id, activity_type, owner_name, title, details, act
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
+            _current_branch_id(),
             customer_id,
             activity_date or datetime.now().strftime("%Y-%m-%d %H:%M"),
             activity_type,
@@ -1254,8 +1287,8 @@ def _upsert_primary_customer_contact(customer_id, customer_name, data):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                1,
-                customer_id,
+                    _current_branch_id(),
+                    customer_id,
                 contact_name,
                 "Primary contact",
                 data["phone"],
@@ -1328,7 +1361,7 @@ def _create_shortage_purchase_request(job, item, job_material_id, shortage_qty, 
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
+            _current_branch_id(),
             item["vendor_id"],
             job["id"],
             job_material_id,
@@ -1358,17 +1391,18 @@ def home():
 def dashboard():
     payload = build_bootstrap_payload()
     db = get_db()
+    branch_id = _current_branch_id()
     role_snapshot = {
-        "customers": db.execute("SELECT COUNT(*) AS count FROM customers").fetchone()["count"],
-        "leads": db.execute("SELECT COUNT(*) AS count FROM leads").fetchone()["count"],
-        "opportunities": db.execute("SELECT COUNT(*) AS count FROM opportunities").fetchone()["count"],
-        "quotes": db.execute("SELECT COUNT(*) AS count FROM quotes").fetchone()["count"],
-        "jobs": db.execute("SELECT COUNT(*) AS count FROM jobs").fetchone()["count"],
-        "invoices": db.execute("SELECT COUNT(*) AS count FROM invoices").fetchone()["count"],
-        "deliveries": db.execute("SELECT COUNT(*) AS count FROM deliveries").fetchone()["count"],
-        "inventory_items": db.execute("SELECT COUNT(*) AS count FROM inventory_items").fetchone()["count"],
-        "materials": db.execute("SELECT COUNT(*) AS count FROM job_materials").fetchone()["count"],
-        "users": db.execute("SELECT COUNT(*) AS count FROM users WHERE is_active = 1").fetchone()["count"],
+        "customers": db.execute("SELECT COUNT(*) AS count FROM customers WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "leads": db.execute("SELECT COUNT(*) AS count FROM leads WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "opportunities": db.execute("SELECT COUNT(*) AS count FROM opportunities WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "quotes": db.execute("SELECT COUNT(*) AS count FROM quotes WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "jobs": db.execute("SELECT COUNT(*) AS count FROM jobs WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "invoices": db.execute("SELECT COUNT(*) AS count FROM invoices WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "deliveries": db.execute("SELECT COUNT(*) AS count FROM deliveries WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "inventory_items": db.execute("SELECT COUNT(*) AS count FROM inventory_items WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "materials": db.execute("SELECT COUNT(*) AS count FROM job_materials WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
+        "users": db.execute("SELECT COUNT(*) AS count FROM users WHERE branch_id = ? AND is_active = 1", (branch_id,)).fetchone()["count"],
     }
     return render_template(
         "dashboard.html",
@@ -1384,12 +1418,13 @@ def workboard():
     today = datetime.now().date().isoformat()
     next_week = (datetime.now().date() + timedelta(days=7)).isoformat()
     db = get_db()
+    branch_id = _current_branch_id()
     tasks = db.execute(
         """
         SELECT t.*, c.name AS customer_name
         FROM tasks t
         LEFT JOIN customers c ON c.id = t.customer_id
-        WHERE t.status IN ('open', 'scheduled')
+        WHERE t.branch_id = ? AND t.status IN ('open', 'scheduled')
         ORDER BY CASE
             WHEN t.due_date < ? THEN 0
             WHEN t.due_date = ? THEN 1
@@ -1404,7 +1439,7 @@ def workboard():
         t.id DESC
         LIMIT 12
         """,
-        (today, today),
+        (branch_id, today, today),
     ).fetchall()
     installs = db.execute(
         """
@@ -1414,10 +1449,11 @@ def workboard():
                (SELECT COUNT(*) FROM purchase_requests pr WHERE pr.job_id = j.id AND pr.status IN ('Open', 'Quoted', 'Ordered')) AS open_purchase_requests
         FROM jobs j
         JOIN customers c ON c.id = j.customer_id
-        WHERE j.status NOT IN ('Completed', 'Cancelled')
+        WHERE j.branch_id = ? AND j.status NOT IN ('Completed', 'Cancelled')
         ORDER BY j.scheduled_start IS NULL, j.scheduled_start, j.id DESC
         LIMIT 10
-        """
+        """,
+        (branch_id,),
     ).fetchall()
     collections = db.execute(
         """
@@ -1426,7 +1462,7 @@ def workboard():
         FROM invoices i
         JOIN customers c ON c.id = i.customer_id
         LEFT JOIN jobs j ON j.id = i.job_id
-        WHERE i.remaining_balance > 0
+        WHERE i.branch_id = ? AND i.remaining_balance > 0
         ORDER BY CASE i.aging_bucket
             WHEN '60+ days' THEN 0
             WHEN '31-60 days' THEN 1
@@ -1434,7 +1470,8 @@ def workboard():
             ELSE 3
         END, i.due_date, i.id DESC
         LIMIT 10
-        """
+        """,
+        (branch_id,),
     ).fetchall()
     purchasing = db.execute(
         """
@@ -1445,37 +1482,40 @@ def workboard():
         LEFT JOIN jobs j ON j.id = pr.job_id
         LEFT JOIN customers c ON c.id = j.customer_id
         LEFT JOIN inventory_items i ON i.id = pr.inventory_item_id
-        WHERE pr.status IN ('Open', 'Quoted', 'Ordered')
+        WHERE pr.branch_id = ? AND pr.status IN ('Open', 'Quoted', 'Ordered')
         ORDER BY CASE pr.priority
             WHEN 'high' THEN 0
             WHEN 'medium' THEN 1
             ELSE 2
         END, pr.needed_by IS NULL, pr.needed_by, pr.id DESC
         LIMIT 10
-        """
+        """,
+        (branch_id,),
     ).fetchall()
     summary = {
         "overdue_tasks": db.execute(
-            "SELECT COUNT(*) AS count FROM tasks WHERE status IN ('open', 'scheduled') AND due_date < ?",
-            (today,),
+            "SELECT COUNT(*) AS count FROM tasks WHERE branch_id = ? AND status IN ('open', 'scheduled') AND due_date < ?",
+            (branch_id, today),
         ).fetchone()["count"],
         "installs_this_week": db.execute(
             """
             SELECT COUNT(*) AS count
             FROM jobs
-            WHERE scheduled_start IS NOT NULL
+            WHERE branch_id = ?
+              AND scheduled_start IS NOT NULL
               AND scheduled_start >= ?
               AND scheduled_start <= ?
               AND status NOT IN ('Completed', 'Cancelled')
             """,
-            (today, next_week),
+            (branch_id, today, next_week),
         ).fetchone()["count"],
         "past_due_ar": db.execute(
-            "SELECT COUNT(*) AS count FROM invoices WHERE remaining_balance > 0 AND due_date < ?",
-            (today,),
+            "SELECT COUNT(*) AS count FROM invoices WHERE branch_id = ? AND remaining_balance > 0 AND due_date < ?",
+            (branch_id, today),
         ).fetchone()["count"],
         "open_shortages": db.execute(
-            "SELECT COUNT(*) AS count FROM purchase_requests WHERE status IN ('Open', 'Quoted', 'Ordered')",
+            "SELECT COUNT(*) AS count FROM purchase_requests WHERE branch_id = ? AND status IN ('Open', 'Quoted', 'Ordered')",
+            (branch_id,),
         ).fetchone()["count"],
     }
     return render_template(
@@ -1493,18 +1533,20 @@ def workboard():
 @roles_required(*CRM_ROLES)
 def customers_index():
     query = request.args.get("q", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT c.*,
                (SELECT COUNT(*) FROM leads l WHERE l.customer_id = c.id) AS lead_count,
                (SELECT COUNT(*) FROM opportunities o WHERE o.customer_id = c.id) AS opportunity_count,
                (SELECT COUNT(*) FROM tasks t WHERE t.customer_id = c.id AND t.status IN ('open', 'scheduled')) AS open_task_count
         FROM customers c
+        WHERE c.branch_id = ?
     """
 
     if query:
         sql += """
-            WHERE c.name LIKE ?
+            AND (
+               c.name LIKE ?
                OR c.primary_contact LIKE ?
                OR c.service_address LIKE ?
                OR EXISTS (
@@ -1513,6 +1555,7 @@ def customers_index():
                     WHERE cc.customer_id = c.id
                       AND (cc.full_name LIKE ? OR cc.email LIKE ? OR cc.phone LIKE ?)
                )
+            )
         """
         like_value = f"%{query}%"
         params.extend([like_value, like_value, like_value, like_value, like_value, like_value])
@@ -1821,8 +1864,8 @@ def customer_tasks_create(customer_id):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
-            customer_id,
+                _current_branch_id(),
+                customer_id,
             data["title"],
             data["module_name"],
             data["owner_name"],
@@ -1915,8 +1958,8 @@ def customer_emails_create(customer_id):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
-            customer_id,
+                    _current_branch_id(),
+                    customer_id,
             data["direction"],
             data["contact_email"],
             data["subject"],
@@ -1986,8 +2029,8 @@ def customer_calendar_create(customer_id):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
-            customer_id,
+                _current_branch_id(),
+                customer_id,
             data["title"],
             data["event_type"],
             data["starts_at"],
@@ -2063,7 +2106,7 @@ def customer_contacts_create(customer_id):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
+            _current_branch_id(),
             customer_id,
             data["full_name"],
             data["role_label"],
@@ -2279,7 +2322,10 @@ def customer_portal_users_invite(portal_user_id):
 @bp.post("/portal-messages/<int:message_id>/status")
 @roles_required(*ALL_APP_ROLES)
 def portal_messages_update_status(message_id):
-    message = get_db().execute("SELECT * FROM portal_messages WHERE id = ?", (message_id,)).fetchone()
+    message = get_db().execute(
+        "SELECT * FROM portal_messages WHERE id = ? AND branch_id = ?",
+        (message_id, _current_branch_id()),
+    ).fetchone()
     if message is None:
         abort(404)
 
@@ -2337,7 +2383,7 @@ def customers_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["name"],
                     data["segment"],
                     data["is_repeat"],
@@ -2467,16 +2513,17 @@ def customers_delete(customer_id):
 @roles_required(*CRM_ROLES)
 def leads_index():
     stage = request.args.get("stage", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT l.*, c.name AS customer_name, o.id AS opportunity_id
         FROM leads l
         LEFT JOIN customers c ON c.id = l.customer_id
         LEFT JOIN opportunities o ON o.lead_id = l.id
+        WHERE l.branch_id = ?
     """
 
     if stage:
-        sql += " WHERE l.stage = ?"
+        sql += " AND l.stage = ?"
         params.append(stage)
 
     sql += " ORDER BY l.id DESC"
@@ -2516,7 +2563,7 @@ def leads_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["customer_id"],
                     data["source"],
                     data["trade_interest"],
@@ -2621,15 +2668,16 @@ def leads_delete(lead_id):
 @roles_required(*CRM_ROLES)
 def opportunities_index():
     stage = request.args.get("stage", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT o.*, c.name AS customer_name
         FROM opportunities o
         LEFT JOIN customers c ON c.id = o.customer_id
+        WHERE o.branch_id = ?
     """
 
     if stage:
-        sql += " WHERE o.stage = ?"
+        sql += " AND o.stage = ?"
         params.append(stage)
 
     sql += " ORDER BY o.priority DESC, o.close_date ASC"
@@ -2678,7 +2726,7 @@ def opportunities_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["lead_id"],
                     data["customer_id"],
                     data["name"],
@@ -2787,17 +2835,18 @@ def opportunities_delete(opportunity_id):
 @roles_required(*CRM_ROLES)
 def quotes_index():
     status = request.args.get("status", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT q.*, c.name AS customer_name, c.company_name, c.company_address,
                c.company_logo_filename, o.name AS opportunity_name
         FROM quotes q
         JOIN customers c ON c.id = q.customer_id
         LEFT JOIN opportunities o ON o.id = q.opportunity_id
+        WHERE q.branch_id = ?
     """
 
     if status:
-        sql += " WHERE q.status = ?"
+        sql += " AND q.status = ?"
         params.append(status)
 
     sql += " ORDER BY q.id DESC"
@@ -2846,7 +2895,7 @@ def quotes_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["opportunity_id"],
                     data["customer_id"],
                     data["quote_number"],
@@ -3062,7 +3111,7 @@ def quotes_delete(quote_id):
 def jobs_board():
     selected_phase = request.args.get("phase", "").strip()
     selected_status = request.args.get("status", "").strip()
-    params = []
+    params = [_current_branch_id()]
     where_clauses = []
     sql = """
         SELECT j.*, c.name AS customer_name, q.quote_number, q.option_name,
@@ -3096,12 +3145,13 @@ def jobs_board():
         FROM jobs j
         JOIN customers c ON c.id = j.customer_id
         LEFT JOIN quotes q ON q.id = j.quote_id
+        WHERE j.branch_id = ?
     """
     if selected_status:
-        where_clauses.append("j.status = ?")
+        where_clauses.append("AND j.status = ?")
         params.append(selected_status)
     if where_clauses:
-        sql += " WHERE " + " AND ".join(where_clauses)
+        sql += " " + " ".join(where_clauses)
     sql += """
         ORDER BY CASE j.status
             WHEN 'Sales handoff' THEN 1
@@ -3185,7 +3235,7 @@ def jobs_board():
 @roles_required(*ALL_APP_ROLES)
 def jobs_index():
     status = request.args.get("status", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT j.*, c.name AS customer_name, q.quote_number, q.option_name,
                (SELECT COUNT(*) FROM invoices i WHERE i.job_id = j.id) AS invoice_count,
@@ -3199,9 +3249,10 @@ def jobs_index():
         FROM jobs j
         JOIN customers c ON c.id = j.customer_id
         LEFT JOIN quotes q ON q.id = j.quote_id
+        WHERE j.branch_id = ?
     """
     if status:
-        sql += " WHERE j.status = ?"
+        sql += " AND j.status = ?"
         params.append(status)
     sql += " ORDER BY j.id DESC"
     jobs = get_db().execute(sql, params).fetchall()
@@ -3250,7 +3301,7 @@ def jobs_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["opportunity_id"],
                     data["quote_id"],
                     data["customer_id"],
@@ -3376,9 +3427,9 @@ def jobs_costing(job_id):
         FROM jobs j
         JOIN customers c ON c.id = j.customer_id
         LEFT JOIN quotes q ON q.id = j.quote_id
-        WHERE j.id = ?
+        WHERE j.id = ? AND j.branch_id = ?
         """,
-        (job_id,),
+        (job_id, _current_branch_id()),
     ).fetchone()
     if job is None:
         abort(404)
@@ -3480,7 +3531,7 @@ def jobs_costs_create(job_id):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
+            _current_branch_id(),
             job_id,
             data["vendor_id"],
             data["cost_code"],
@@ -3541,9 +3592,9 @@ def jobs_execution(job_id):
         FROM jobs j
         JOIN customers c ON c.id = j.customer_id
         LEFT JOIN quotes q ON q.id = j.quote_id
-        WHERE j.id = ?
+        WHERE j.id = ? AND j.branch_id = ?
         """,
-        (job_id,),
+        (job_id, _current_branch_id()),
     ).fetchone()
     if job is None:
         abort(404)
@@ -3850,7 +3901,7 @@ def change_orders_create(job_id):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
+            _current_branch_id(),
             job_id,
             job["customer_id"],
             job["quote_id"],
@@ -4015,7 +4066,7 @@ def job_documents_create(job_id):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            1,
+            _current_branch_id(),
             job_id,
             job["customer_id"],
             data["record_type"],
@@ -4173,9 +4224,9 @@ def job_materials_index(job_id):
         FROM jobs j
         JOIN customers c ON c.id = j.customer_id
         LEFT JOIN quotes q ON q.id = j.quote_id
-        WHERE j.id = ?
+        WHERE j.id = ? AND j.branch_id = ?
         """,
-        (job_id,),
+        (job_id, _current_branch_id()),
     ).fetchone()
     if job is None:
         abort(404)
@@ -4267,7 +4318,7 @@ def job_materials_create(job_id):
             shortage_qty, status, notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (1, job_id, item["id"], data["requested_qty"], reserved_qty, shortage_qty, status, notes),
+        (_current_branch_id(), job_id, item["id"], data["requested_qty"], reserved_qty, shortage_qty, status, notes),
     )
     if reserved_qty > 0:
         db.execute(
@@ -4325,7 +4376,7 @@ def job_materials_delete(material_id):
 @roles_required(*ALL_APP_ROLES)
 def purchasing_index():
     status = request.args.get("status", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT pr.*, v.name AS vendor_name, j.name AS job_name, c.id AS customer_id,
                c.name AS customer_name, i.item_name, i.sku
@@ -4334,9 +4385,10 @@ def purchasing_index():
         LEFT JOIN jobs j ON j.id = pr.job_id
         LEFT JOIN customers c ON c.id = j.customer_id
         LEFT JOIN inventory_items i ON i.id = pr.inventory_item_id
+        WHERE pr.branch_id = ?
     """
     if status:
-        sql += " WHERE pr.status = ?"
+        sql += " AND pr.status = ?"
         params.append(status)
     sql += """
         ORDER BY CASE pr.status
@@ -4350,13 +4402,15 @@ def purchasing_index():
 
     db = get_db()
     requests = db.execute(sql, params).fetchall()
+    branch_id = _current_branch_id()
     summary = {
-        "open": db.execute("SELECT COUNT(*) AS count FROM purchase_requests WHERE status IN ('Open', 'Quoted', 'Ordered')").fetchone()["count"],
-        "high_priority": db.execute("SELECT COUNT(*) AS count FROM purchase_requests WHERE priority = 'high'").fetchone()["count"],
+        "open": db.execute("SELECT COUNT(*) AS count FROM purchase_requests WHERE branch_id = ? AND status IN ('Open', 'Quoted', 'Ordered')", (branch_id,)).fetchone()["count"],
+        "high_priority": db.execute("SELECT COUNT(*) AS count FROM purchase_requests WHERE branch_id = ? AND priority = 'high'", (branch_id,)).fetchone()["count"],
         "due_soon": db.execute(
-            "SELECT COUNT(*) AS count FROM purchase_requests WHERE needed_by IS NOT NULL AND status IN ('Open', 'Quoted', 'Ordered')"
+            "SELECT COUNT(*) AS count FROM purchase_requests WHERE branch_id = ? AND needed_by IS NOT NULL AND status IN ('Open', 'Quoted', 'Ordered')",
+            (branch_id,),
         ).fetchone()["count"],
-        "vendors": db.execute("SELECT COUNT(*) AS count FROM vendors").fetchone()["count"],
+        "vendors": db.execute("SELECT COUNT(*) AS count FROM vendors WHERE branch_id = ?", (branch_id,)).fetchone()["count"],
     }
     return render_template(
         "purchasing/index.html",
@@ -4406,7 +4460,7 @@ def purchasing_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["vendor_id"],
                     data["job_id"],
                     data["job_material_id"],
@@ -4523,7 +4577,7 @@ def purchasing_delete(request_id):
 def inventory_index():
     category = request.args.get("category", "").strip()
     status = request.args.get("status", "").strip()
-    params = []
+    params = [_current_branch_id()]
     conditions = []
     sql = """
         SELECT i.*, v.name AS vendor_name,
@@ -4532,6 +4586,7 @@ def inventory_index():
         FROM inventory_items i
         LEFT JOIN vendors v ON v.id = i.vendor_id
     """
+    conditions.append("i.branch_id = ?")
 
     if category:
         conditions.append("i.category = ?")
@@ -4554,21 +4609,24 @@ def inventory_index():
         LEFT JOIN jobs j ON j.id = pr.job_id
         LEFT JOIN customers c ON c.id = j.customer_id
         LEFT JOIN inventory_items ii ON ii.id = pr.inventory_item_id
+        WHERE pr.branch_id = ?
         ORDER BY CASE pr.priority
             WHEN 'high' THEN 1
             WHEN 'medium' THEN 2
             ELSE 3
         END, pr.needed_by IS NULL, pr.needed_by, pr.id DESC
         LIMIT 6
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
     inventory_summary = {
-        "items": db.execute("SELECT COUNT(*) AS count FROM inventory_items").fetchone()["count"],
-        "reserved": db.execute("SELECT COALESCE(SUM(reserved_qty), 0) AS total FROM inventory_items").fetchone()["total"],
+        "items": db.execute("SELECT COUNT(*) AS count FROM inventory_items WHERE branch_id = ?", (_current_branch_id(),)).fetchone()["count"],
+        "reserved": db.execute("SELECT COALESCE(SUM(reserved_qty), 0) AS total FROM inventory_items WHERE branch_id = ?", (_current_branch_id(),)).fetchone()["total"],
         "available": db.execute(
-            "SELECT COALESCE(SUM(stock_on_hand - reserved_qty), 0) AS total FROM inventory_items"
+            "SELECT COALESCE(SUM(stock_on_hand - reserved_qty), 0) AS total FROM inventory_items WHERE branch_id = ?",
+            (_current_branch_id(),),
         ).fetchone()["total"],
-        "purchase_requests": db.execute("SELECT COUNT(*) AS count FROM purchase_requests").fetchone()["count"],
+        "purchase_requests": db.execute("SELECT COUNT(*) AS count FROM purchase_requests WHERE branch_id = ?", (_current_branch_id(),)).fetchone()["count"],
     }
 
     return render_template(
@@ -4600,7 +4658,10 @@ def inventory_create():
     if request.method == "POST":
         errors = _validate_inventory_form(data)
         existing_sku = (
-            get_db().execute("SELECT id FROM inventory_items WHERE sku = ?", (data["sku"],)).fetchone()
+            get_db().execute(
+                "SELECT id FROM inventory_items WHERE sku = ? AND branch_id = ?",
+                (data["sku"], _current_branch_id()),
+            ).fetchone()
             if data["sku"]
             else None
         )
@@ -4616,7 +4677,7 @@ def inventory_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["vendor_id"],
                     data["sku"],
                     data["item_name"],
@@ -4658,7 +4719,10 @@ def inventory_edit(item_id):
         data = _inventory_form_data(request.form)
         errors = _validate_inventory_form(data, item["reserved_qty"])
         existing_sku = (
-            get_db().execute("SELECT id FROM inventory_items WHERE sku = ?", (data["sku"],)).fetchone()
+            get_db().execute(
+                "SELECT id FROM inventory_items WHERE sku = ? AND branch_id = ?",
+                (data["sku"], _current_branch_id()),
+            ).fetchone()
             if data["sku"]
             else None
         )
@@ -4729,16 +4793,17 @@ def inventory_delete(item_id):
 @roles_required(*ALL_APP_ROLES)
 def dispatch_index():
     status = request.args.get("status", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT d.*, j.name AS job_name, c.id AS customer_id, c.name AS customer_name,
                (SELECT COUNT(*) FROM job_materials jm WHERE jm.job_id = d.job_id) AS material_count
         FROM deliveries d
         LEFT JOIN jobs j ON j.id = d.job_id
         LEFT JOIN customers c ON c.id = j.customer_id
+        WHERE d.branch_id = ?
     """
     if status:
-        sql += " WHERE d.status = ?"
+        sql += " AND d.status = ?"
         params.append(status)
     sql += " ORDER BY d.eta"
 
@@ -4753,12 +4818,14 @@ def dispatch_index():
             FROM jobs j
             JOIN customers c ON c.id = j.customer_id
             LEFT JOIN job_materials jm ON jm.job_id = j.id
+            WHERE j.branch_id = ?
             GROUP BY j.id, j.name, c.name, j.scheduled_start
         ) ready
         WHERE ready.reserved_qty > 0
         ORDER BY ready.scheduled_start IS NULL, ready.scheduled_start, ready.id DESC
         LIMIT 5
-        """
+        """,
+        (_current_branch_id(),),
     ).fetchall()
 
     return render_template(
@@ -4808,7 +4875,7 @@ def dispatch_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["job_id"],
                     data["route_name"],
                     data["truck_name"],
@@ -4916,7 +4983,7 @@ def dispatch_delete(delivery_id):
 @roles_required(*ALL_APP_ROLES)
 def invoices_index():
     status = request.args.get("status", "").strip()
-    params = []
+    params = [_current_branch_id()]
     sql = """
         SELECT i.*, c.name AS customer_name, j.name AS job_name, q.quote_number,
                co.change_number, co.title AS change_order_title,
@@ -4927,9 +4994,10 @@ def invoices_index():
         LEFT JOIN jobs j ON j.id = i.job_id
         LEFT JOIN quotes q ON q.id = i.quote_id
         LEFT JOIN change_orders co ON co.id = i.change_order_id
+        WHERE i.branch_id = ?
     """
     if status:
-        sql += " WHERE i.status = ?"
+        sql += " AND i.status = ?"
         params.append(status)
     sql += " ORDER BY i.id DESC"
     invoices = get_db().execute(sql, params).fetchall()
@@ -5011,7 +5079,7 @@ def invoices_create():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     data["quote_id"],
                     data["change_order_id"],
                     data["customer_id"],
@@ -5215,7 +5283,7 @@ def invoices_payment(invoice_id):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    1,
+                    _current_branch_id(),
                     invoice_id,
                     invoice["customer_id"],
                     payment_data["deposit_account_id"],

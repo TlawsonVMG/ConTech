@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ConTech | Create Company Account</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <link rel="stylesheet" href="{{ url_for('web.styles') }}" />
+  </head>
+  <body class="crm-body">
+    <div class="backdrop"></div>
+    <main class="auth-shell">
+      <section class="auth-panel">
+        <p class="eyebrow">Company workspace</p>
+        <h1 class="hero-title">Create your ConTech account.</h1>
+        <p class="hero-subtitle">
+          This creates a private company workspace and gives the first user full admin access to the CRM/ERP. Customer Portal access stays separate.
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <form class="form-grid" method="post">
+          {{ csrf_input() }}
+          <label class="form-field">
+            <span>Company name</span>
+            <input type="text" name="company_name" value="{{ signup.company_name }}" autocomplete="organization" required />
+          </label>
+          <label class="form-field">
+            <span>Your name</span>
+            <input type="text" name="full_name" value="{{ signup.full_name }}" autocomplete="name" required />
+          </label>
+          <label class="form-field">
+            <span>Email or username</span>
+            <input type="text" name="username" value="{{ signup.username }}" autocomplete="username" required />
+          </label>
+          <label class="form-field">
+            <span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required />
+          </label>
+          <label class="form-field">
+            <span>Confirm password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" required />
+          </label>
+          <button class="action-button accent wide-button" type="submit">Create company workspace</button>
+          <a class="mini-link" href="{{ url_for('auth.login') }}">Back to sign in</a>
+          <a class="mini-link" href="{{ url_for('portal.login') }}">Customer portal sign-in</a>
+        </form>
+      </section>
+
+      <aside class="auth-panel auth-side">
+        <p class="sidebar-label">What this includes</p>
+        <div class="info-list">
+          <div class="info-row">
+            <div class="info-row-main">
+              <div class="row-title">Full admin workspace</div>
+              <div class="row-subtitle">Customers, sales, jobs, dispatch, inventory, accounting, reports, and feedback access.</div>
+            </div>
+          </div>
+          <div class="info-row">
+            <div class="info-row-main">
+              <div class="row-title">Private branch data</div>
+              <div class="row-subtitle">Your company account is created as its own ConTech branch workspace.</div>
+            </div>
+          </div>
+          <div class="info-row">
+            <div class="info-row-main">
+              <div class="row-title">Portal remains separate</div>
+              <div class="row-subtitle">Customer Portal invites still come from inside a customer record.</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+    <script>
+      (function () {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (!token) return;
+        document.querySelectorAll('form').forEach((form) => {
+          const method = (form.getAttribute('method') || 'get').toLowerCase();
+          if (method !== 'post' || form.querySelector('input[name="csrf_token"]')) return;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          input.value = token;
+          form.prepend(input);
+        });
+      })();
+    </script>
+  </body>
+</html>

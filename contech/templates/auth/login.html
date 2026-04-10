@@ -44,6 +44,7 @@
             <input type="password" name="password" autocomplete="current-password" required />
           </label>
           <button class="action-button accent wide-button" type="submit">Sign in</button>
+          <a class="mini-link" href="{{ url_for('auth.signup') }}">Create a company account</a>
           <a class="mini-link" href="{{ url_for('portal.login') }}">Customer portal sign-in</a>
         </form>
       </section>

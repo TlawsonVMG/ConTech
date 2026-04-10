@@ -59,6 +59,61 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
         self.assertIn(b"Follow-Up Queue", workboard_response.data)
         self.assertIn(b"Job build board", job_board_response.data)
 
+    def test_company_signup_creates_isolated_admin_workspace(self):
+        signup_page = self.client.get("/signup")
+        self.assertEqual(signup_page.status_code, 200)
+        self.assertIn(b"Create your ConTech account", signup_page.data)
+
+        response = self.client.post(
+            "/signup",
+            data={
+                "company_name": "Pioneer Roofing Group",
+                "full_name": "Avery Parker",
+                "username": "avery@pioneer.example",
+                "password": "PioneerAdmin!2026",
+                "confirm_password": "PioneerAdmin!2026",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Your company workspace is ready", response.data)
+        self.assertIn(b"Avery Parker", response.data)
+        self.assertNotIn(b"Morris Residence", response.data)
+
+        customers_response = self.client.get("/customers")
+        jobs_response = self.client.get("/jobs/board")
+        inventory_response = self.client.get("/inventory")
+        self.assertEqual(customers_response.status_code, 200)
+        self.assertEqual(jobs_response.status_code, 200)
+        self.assertEqual(inventory_response.status_code, 200)
+        self.assertNotIn(b"Morris Residence", customers_response.data)
+        self.assertNotIn(b"Morris Residence", jobs_response.data)
+        self.assertNotIn(b"architectural", inventory_response.data.lower())
+
+        with self.app.app_context():
+            db = get_db()
+            user = db.execute(
+                """
+                SELECT u.role_name, u.is_active, b.name AS branch_name
+                FROM users u
+                JOIN branches b ON b.id = u.branch_id
+                WHERE u.username = ?
+                """,
+                ("avery@pioneer.example",),
+            ).fetchone()
+            branch_customer_count = db.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM customers
+                WHERE branch_id = (SELECT branch_id FROM users WHERE username = ?)
+                """,
+                ("avery@pioneer.example",),
+            ).fetchone()["count"]
+        self.assertEqual(user["role_name"], "admin")
+        self.assertEqual(user["is_active"], 1)
+        self.assertEqual(user["branch_name"], "Pioneer Roofing Group")
+        self.assertEqual(branch_customer_count, 0)
+
     def test_readiness_endpoint_reports_database_status(self):
         response = self.client.get("/api/ready")
         payload = response.get_json()

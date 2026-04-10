@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from flask import g
+
 from ..db import get_db
 
 
@@ -32,11 +34,17 @@ def _value(row, key, default=0):
     return row[key] if row[key] is not None else default
 
 
+def _current_branch_id():
+    user = g.get("user")
+    return user["branch_id"] if user is not None else 1
+
+
 def _build_overview_metrics():
-    pipeline = _row("SELECT COALESCE(SUM(value), 0) AS total FROM opportunities WHERE stage != 'Won / Ready'")
-    pending_quotes = _row("SELECT COUNT(*) AS total FROM quotes WHERE status = 'Pending Signature'")
-    deliveries = _row("SELECT COUNT(*) AS total FROM deliveries")
-    receivables = _row("SELECT COALESCE(SUM(remaining_balance), 0) AS total FROM invoices")
+    branch_id = _current_branch_id()
+    pipeline = _row("SELECT COALESCE(SUM(value), 0) AS total FROM opportunities WHERE branch_id = ? AND stage != 'Won / Ready'", (branch_id,))
+    pending_quotes = _row("SELECT COUNT(*) AS total FROM quotes WHERE branch_id = ? AND status = 'Pending Signature'", (branch_id,))
+    deliveries = _row("SELECT COUNT(*) AS total FROM deliveries WHERE branch_id = ?", (branch_id,))
+    receivables = _row("SELECT COALESCE(SUM(remaining_balance), 0) AS total FROM invoices WHERE branch_id = ?", (branch_id,))
 
     return [
         {"label": "Active Pipeline", "value": _money(_value(pipeline, "total")), "trend": "Single-branch live snapshot"},
@@ -47,10 +55,11 @@ def _build_overview_metrics():
 
 
 def _build_dashboard():
-    follow_ups = _row("SELECT COUNT(*) AS total FROM tasks WHERE status = 'open'")
-    jobs_ready = _row("SELECT COUNT(*) AS total FROM jobs WHERE status IN ('Sales handoff', 'Ready for production', 'Materials reserved', 'Delivery pending')")
-    vendor_due = _row("SELECT COALESCE(SUM(amount_due), 0) AS total FROM vendors")
-    margin = _row("SELECT gross_margin_pct FROM report_months ORDER BY id DESC LIMIT 1")
+    branch_id = _current_branch_id()
+    follow_ups = _row("SELECT COUNT(*) AS total FROM tasks WHERE branch_id = ? AND status = 'open'", (branch_id,))
+    jobs_ready = _row("SELECT COUNT(*) AS total FROM jobs WHERE branch_id = ? AND status IN ('Sales handoff', 'Ready for production', 'Materials reserved', 'Delivery pending')", (branch_id,))
+    vendor_due = _row("SELECT COALESCE(SUM(amount_due), 0) AS total FROM vendors WHERE branch_id = ?", (branch_id,))
+    margin = _row("SELECT gross_margin_pct FROM report_months WHERE branch_id = ? ORDER BY id DESC LIMIT 1", (branch_id,))
 
     hot_pipeline = [
         {
@@ -65,9 +74,11 @@ def _build_dashboard():
             """
             SELECT name, subtitle, stage, close_date, value, priority
             FROM opportunities
+            WHERE branch_id = ?
             ORDER BY priority DESC
             LIMIT 4
-            """
+            """,
+            (branch_id,),
         )
     ]
 
@@ -78,9 +89,11 @@ def _build_dashboard():
             """
             SELECT close_date
             FROM opportunities
+            WHERE branch_id = ?
             ORDER BY priority DESC
             LIMIT 4
-            """
+            """,
+            (branch_id,),
         ),
     ):
         item["close"] = datetime.fromisoformat(row["close_date"]).strftime("%b %d").replace(" 0", " ")
@@ -96,9 +109,11 @@ def _build_dashboard():
             """
             SELECT route_name, eta, notes, status
             FROM deliveries
+            WHERE branch_id = ?
             ORDER BY eta
             LIMIT 3
-            """
+            """,
+            (branch_id,),
         )
     ]
 
@@ -112,6 +127,7 @@ def _build_dashboard():
             """
             SELECT item_name, stock_on_hand, reserved_qty, status
             FROM inventory_items
+            WHERE branch_id = ?
             ORDER BY CASE status
                 WHEN 'Low' THEN 1
                 WHEN 'Cost spike' THEN 2
@@ -119,7 +135,8 @@ def _build_dashboard():
                 ELSE 4
             END
             LIMIT 3
-            """
+            """,
+            (branch_id,),
         )
     ]
 
@@ -127,17 +144,19 @@ def _build_dashboard():
         """
         SELECT COALESCE(SUM(remaining_balance), 0) AS total
         FROM invoices
-        WHERE aging_bucket != 'Current'
-        """
+        WHERE branch_id = ? AND aging_bucket != 'Current'
+        """,
+        (branch_id,),
     )
     deposits = _row(
         """
         SELECT COALESCE(SUM(amount - remaining_balance), 0) AS total
         FROM invoices
-        WHERE amount > remaining_balance
-        """
+        WHERE branch_id = ? AND amount > remaining_balance
+        """,
+        (branch_id,),
     )
-    payroll = _row("SELECT gross_pay FROM payroll_runs ORDER BY process_date DESC LIMIT 1")
+    payroll = _row("SELECT gross_pay FROM payroll_runs WHERE branch_id = ? ORDER BY process_date DESC LIMIT 1", (branch_id,))
 
     return {
         "focusAreas": [
@@ -165,16 +184,17 @@ def _build_dashboard():
 
 
 def _build_sales():
+    branch_id = _current_branch_id()
     lanes = []
     for stage in ["New Leads", "Inspection", "Quoted", "Won / Ready"]:
         stage_rows = _rows(
             """
             SELECT name, subtitle, rep, value
             FROM opportunities
-            WHERE stage = ?
+            WHERE branch_id = ? AND stage = ?
             ORDER BY priority DESC
             """,
-            (stage,),
+            (branch_id, stage),
         )
         total = sum(row["value"] for row in stage_rows)
         lanes.append(
@@ -197,9 +217,11 @@ def _build_sales():
         """
         SELECT source, COUNT(*) AS total
         FROM leads
+        WHERE branch_id = ?
         GROUP BY source
         ORDER BY total DESC
-        """
+        """,
+        (branch_id,),
     )
     max_count = max((row["total"] for row in channel_counts), default=1)
 
@@ -212,7 +234,7 @@ def _build_sales():
                 "amount": _money(row["amount"]),
                 "tone": "warning" if row["option_name"] == "Good" else "success" if row["option_name"] == "Better" else "default",
             }
-            for row in _rows("SELECT option_name, description, amount FROM quotes ORDER BY amount")
+            for row in _rows("SELECT option_name, description, amount FROM quotes WHERE branch_id = ? ORDER BY amount", (branch_id,))
         ],
         "orders": [
             {
@@ -226,28 +248,39 @@ def _build_sales():
                 SELECT c.name, i.invoice_number, i.status, i.amount
                 FROM invoices i
                 JOIN customers c ON c.id = i.customer_id
+                WHERE i.branch_id = ?
                 ORDER BY i.amount DESC
                 LIMIT 4
-                """
+                """,
+                (branch_id,),
             )
         ],
         "channels": [
             {"label": row["source"], "value": round((row["total"] / max_count) * 100)}
             for row in channel_counts
         ],
-        "actions": [row["title"] for row in _rows("SELECT title FROM tasks WHERE status = 'open' ORDER BY due_date, id LIMIT 4")],
+        "actions": [
+            row["title"]
+            for row in _rows(
+                "SELECT title FROM tasks WHERE branch_id = ? AND status = 'open' ORDER BY due_date, id LIMIT 4",
+                (branch_id,),
+            )
+        ],
     }
 
 
 def _build_customers():
+    branch_id = _current_branch_id()
     cards = []
     for row in _rows(
         """
         SELECT name, segment, is_repeat, notes, trade_mix
         FROM customers
+        WHERE branch_id = ?
         ORDER BY id
         LIMIT 4
-        """
+        """,
+        (branch_id,),
     ):
         cards.append(
             {
@@ -258,8 +291,8 @@ def _build_customers():
             }
         )
 
-    profile_customer = _row("SELECT * FROM customers ORDER BY id LIMIT 1")
-    repeat_rate = _row("SELECT AVG(is_repeat) * 100 AS pct FROM customers")
+    profile_customer = _row("SELECT * FROM customers WHERE branch_id = ? ORDER BY id LIMIT 1", (branch_id,))
+    repeat_rate = _row("SELECT AVG(is_repeat) * 100 AS pct FROM customers WHERE branch_id = ?", (branch_id,))
 
     profile = []
     timeline = []
@@ -280,10 +313,10 @@ def _build_customers():
                 """
                 SELECT activity_date, title, details
                 FROM activity_feed
-                WHERE customer_id = ?
+                WHERE branch_id = ? AND customer_id = ?
                 ORDER BY activity_date
                 """,
-                (profile_customer["id"],),
+                (branch_id, profile_customer["id"]),
             )
         ]
     else:
@@ -308,9 +341,10 @@ def _build_customers():
 
 
 def _build_reports():
-    total_opps = _row("SELECT COUNT(*) AS total FROM opportunities")
-    won_opps = _row("SELECT COUNT(*) AS total FROM opportunities WHERE stage = 'Won / Ready'")
-    on_time = _row("SELECT on_time_delivery_pct AS pct FROM report_months ORDER BY id DESC LIMIT 1")
+    branch_id = _current_branch_id()
+    total_opps = _row("SELECT COUNT(*) AS total FROM opportunities WHERE branch_id = ?", (branch_id,))
+    won_opps = _row("SELECT COUNT(*) AS total FROM opportunities WHERE branch_id = ? AND stage = 'Won / Ready'", (branch_id,))
+    on_time = _row("SELECT on_time_delivery_pct AS pct FROM report_months WHERE branch_id = ? ORDER BY id DESC LIMIT 1", (branch_id,))
     total_opportunity_count = _value(total_opps, "total")
     win_rate = (_value(won_opps, "total") / total_opportunity_count) * 100 if total_opportunity_count else 0
 
@@ -327,7 +361,7 @@ def _build_reports():
                 "value": round((row["revenue_amount"] / 500000) * 100),
                 "amount": _money(row["revenue_amount"]),
             }
-            for row in _rows("SELECT month_label, revenue_amount FROM report_months ORDER BY id")
+            for row in _rows("SELECT month_label, revenue_amount FROM report_months WHERE branch_id = ? ORDER BY id", (branch_id,))
         ],
         "marginByTrade": [
             {"label": "Roof replacement", "value": "35.4%"},
@@ -352,13 +386,16 @@ def _build_reports():
 
 
 def _build_dispatch():
+    branch_id = _current_branch_id()
     route_rows = _rows(
         """
         SELECT route_name, notes, load_percent
         FROM deliveries
+        WHERE branch_id = ?
         ORDER BY eta
         LIMIT 3
-        """
+        """,
+        (branch_id,),
     )
 
     return {
@@ -377,10 +414,12 @@ def _build_dispatch():
                 """
                 SELECT id, job_id, eta, truck_name, notes, route_name
                 FROM deliveries
+                WHERE branch_id = ?
                 ORDER BY eta
-                """
+                """,
+                (branch_id,),
             )
-            for job_row in [_row("SELECT name FROM jobs WHERE id = ?", (row["job_id"],)) if row["job_id"] else None]
+            for job_row in [_row("SELECT name FROM jobs WHERE id = ? AND branch_id = ?", (row["job_id"], branch_id)) if row["job_id"] else None]
         ],
         "crews": [
             {"label": "Crew Red", "value": "2 roof installs / 1 repair"},
@@ -397,12 +436,15 @@ def _build_dispatch():
 
 
 def _build_inventory():
+    branch_id = _current_branch_id()
     stock_rows = _rows(
         """
         SELECT sku, item_name, stock_on_hand, reserved_qty, unit_cost, unit_price, status
         FROM inventory_items
+        WHERE branch_id = ?
         ORDER BY id
-        """
+        """,
+        (branch_id,),
     )
 
     return {
@@ -420,7 +462,7 @@ def _build_inventory():
         ],
         "purchasing": [
             {"title": row["title"], "copy": row["details"]}
-            for row in _rows("SELECT title, details FROM purchase_requests ORDER BY id")
+            for row in _rows("SELECT title, details FROM purchase_requests WHERE branch_id = ? ORDER BY id", (branch_id,))
         ],
         "controls": [
             {"label": "Warehouse stock lists", "value": "5 templates"},
@@ -437,10 +479,11 @@ def _build_inventory():
 
 
 def _build_accounting():
-    operating_cash = _row("SELECT current_balance FROM bank_accounts WHERE account_name = 'Operating Cash'")
-    receivables = _row("SELECT COALESCE(SUM(remaining_balance), 0) AS total FROM invoices")
-    payables = _row("SELECT COALESCE(SUM(amount_due), 0) AS total FROM vendors")
-    payroll = _row("SELECT gross_pay, process_date FROM payroll_runs ORDER BY process_date DESC LIMIT 1")
+    branch_id = _current_branch_id()
+    operating_cash = _row("SELECT current_balance FROM bank_accounts WHERE branch_id = ? AND account_name = 'Operating Cash'", (branch_id,))
+    receivables = _row("SELECT COALESCE(SUM(remaining_balance), 0) AS total FROM invoices WHERE branch_id = ?", (branch_id,))
+    payables = _row("SELECT COALESCE(SUM(amount_due), 0) AS total FROM vendors WHERE branch_id = ?", (branch_id,))
+    payroll = _row("SELECT gross_pay, process_date FROM payroll_runs WHERE branch_id = ? ORDER BY process_date DESC LIMIT 1", (branch_id,))
 
     return {
         "balances": [
@@ -455,7 +498,7 @@ def _build_accounting():
         ],
         "cards": [
             {"title": row["card_name"], "copy": row["note"]}
-            for row in _rows("SELECT card_name, note FROM company_cards ORDER BY id")
+            for row in _rows("SELECT card_name, note FROM company_cards WHERE branch_id = ? ORDER BY id", (branch_id,))
         ],
         "aging": [
             {
@@ -469,9 +512,11 @@ def _build_accounting():
                 SELECT c.name, i.aging_bucket, i.remaining_balance, i.status
                 FROM invoices i
                 JOIN customers c ON c.id = i.customer_id
+                WHERE i.branch_id = ?
                 ORDER BY i.id
                 LIMIT 4
-                """
+                """,
+                (branch_id,),
             )
         ],
         "payroll": [

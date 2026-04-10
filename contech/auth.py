@@ -14,7 +14,7 @@ from flask import (
     session,
     url_for,
 )
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from .db import get_db
 
@@ -89,6 +89,17 @@ def _is_safe_next_url(next_url):
         return False
     parsed = urlparse(next_url)
     return parsed.scheme == "" and parsed.netloc == "" and next_url.startswith("/")
+
+
+def _branch_code_from_company(company_name):
+    base = "".join(char for char in company_name.upper() if char.isalnum())[:8] or "BRANCH"
+    db = get_db()
+    code = base
+    suffix = 2
+    while db.execute("SELECT id FROM branches WHERE code = ?", (code,)).fetchone() is not None:
+        code = f"{base[:5]}{suffix:03d}"
+        suffix += 1
+    return code
 
 
 @bp.before_app_request
@@ -174,6 +185,79 @@ def login():
         flash(error, "error")
 
     return render_template("auth/login.html")
+
+
+@bp.route("/signup", methods=("GET", "POST"))
+def signup():
+    if g.get("user") is not None:
+        return redirect(url_for("crm.dashboard"))
+    if not current_app.config.get("STAFF_SIGNUP_ENABLED", True):
+        abort(404)
+
+    data = {
+        "company_name": request.form.get("company_name", "").strip(),
+        "full_name": request.form.get("full_name", "").strip(),
+        "username": request.form.get("username", "").strip().lower(),
+        "password": request.form.get("password", ""),
+        "confirm_password": request.form.get("confirm_password", ""),
+    }
+
+    if request.method == "POST":
+        errors = []
+        if not data["company_name"]:
+            errors.append("Company name is required.")
+        if not data["full_name"]:
+            errors.append("Your name is required.")
+        if not data["username"]:
+            errors.append("Email or username is required.")
+        if len(data["password"]) < 12:
+            errors.append("Password must be at least 12 characters.")
+        if data["password"] != data["confirm_password"]:
+            errors.append("Passwords must match.")
+        if get_db().execute("SELECT id FROM users WHERE username = ?", (data["username"],)).fetchone() is not None:
+            errors.append("That sign-in username is already in use.")
+
+        if not errors:
+            db = get_db()
+            branch_id = db.insert(
+                """
+                INSERT INTO branches (name, code, address, city, state, postal_code)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    data["company_name"],
+                    _branch_code_from_company(data["company_name"]),
+                    "Company address pending",
+                    "TBD",
+                    "NA",
+                    "00000",
+                ),
+            )
+            user_id = db.insert(
+                """
+                INSERT INTO users (branch_id, username, password_hash, full_name, role_name, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    branch_id,
+                    data["username"],
+                    generate_password_hash(data["password"]),
+                    data["full_name"],
+                    "admin",
+                    1,
+                ),
+            )
+            db.commit()
+            session.clear()
+            session.permanent = True
+            session["user_id"] = user_id
+            flash(f"Welcome to ConTech, {data['full_name']}. Your company workspace is ready.", "success")
+            return redirect(url_for("crm.dashboard"))
+
+        for error in errors:
+            flash(error, "error")
+
+    return render_template("auth/signup.html", signup=data)
 
 
 @bp.post("/logout")

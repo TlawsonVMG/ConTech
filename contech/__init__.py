@@ -57,6 +57,7 @@ def _load_config_from_env(app):
         "SESSION_COOKIE_SECURE",
         "TRUST_PROXY_HEADERS",
         "CSRF_ENABLED",
+        "STAFF_SIGNUP_ENABLED",
     )
     int_keys = ("MAX_CONTENT_LENGTH", "LOGIN_MAX_FAILURES", "LOGIN_WINDOW_MINUTES")
 
@@ -103,6 +104,7 @@ def create_app(test_config=None):
         SESSION_COOKIE_SECURE=False,
         TRUST_PROXY_HEADERS=False,
         CSRF_ENABLED=True,
+        STAFF_SIGNUP_ENABLED=True,
         LOGIN_MAX_FAILURES=5,
         LOGIN_WINDOW_MINUTES=15,
         BOOTSTRAP_ADMIN_USERNAME="admin",
