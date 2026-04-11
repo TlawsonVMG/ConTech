@@ -3,7 +3,7 @@
 {% block title %}ConTech | Contract Execution{% endblock %}
 {% block kicker %}Sales execution{% endblock %}
 {% block page_title %}Contract Execution{% endblock %}
-{% block page_description %}Record the signed date and deposit progress before the contract moves into production.{% endblock %}
+{% block page_description %}Review the itemized quote, confirm deposit progress, and lock the contract before it moves into production.{% endblock %}
 
 {% block page_actions %}
   <a class="action-button" href="{{ url_for('crm.quotes_index') }}">Back to quotes</a>
@@ -34,25 +34,67 @@
       {% endif %}
       <div class="mini-stat-grid">
         <div class="mini-stat">
-          <span class="metric-label">Amount</span>
-          <strong>{{ quote.amount|currency }}</strong>
-          <div class="row-subtitle">Contract value</div>
+          <span class="metric-label">Subtotal</span>
+          <strong>{{ quote_summary.subtotal|currency }}</strong>
+          <div class="row-subtitle">Sell before tax</div>
         </div>
         <div class="mini-stat">
-          <span class="metric-label">Est cost</span>
-          <strong>{{ quote.estimated_cost|currency }}</strong>
-          <div class="row-subtitle">Quoted job cost target</div>
+          <span class="metric-label">Tax</span>
+          <strong>{{ quote_summary.tax_total|currency }}</strong>
+          <div class="row-subtitle">Taxable lines at {{ quote.tax_rate_pct }}%</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Grand total</span>
+          <strong>{{ quote_summary.grand_total|currency }}</strong>
+          <div class="row-subtitle">Customer-facing contract total</div>
         </div>
         <div class="mini-stat">
           <span class="metric-label">Margin</span>
-          <strong>{{ quote.target_margin_pct }}%</strong>
-          <div class="row-subtitle">Target gross margin</div>
+          <strong>{{ quote_summary.target_margin_pct }}%</strong>
+          <div class="row-subtitle">Gross margin on subtotal</div>
         </div>
-        <div class="mini-stat">
-          <span class="metric-label">Status</span>
-          <strong>{{ quote.status }}</strong>
-          <div class="row-subtitle">Current contract state</div>
-        </div>
+      </div>
+
+      <div class="table-wrap spreadsheet-table top-gap">
+        <table>
+          <thead>
+            <tr>
+              <th>Line item</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit price</th>
+              <th>Subtotal</th>
+              <th>Tax</th>
+              <th>Total</th>
+              <th>Cost</th>
+              <th>Profit</th>
+              <th>Margin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in quote_lines %}
+              <tr>
+                <td>
+                  <div class="row-title">{{ line.item_name }}</div>
+                  <div class="row-subtitle">{{ line.sku or 'Manual line item' }}</div>
+                </td>
+                <td>{{ line.description or 'No line note' }}</td>
+                <td>{{ line.quantity }} {{ line.unit_label }}</td>
+                <td>{{ line.unit_price|currency }}</td>
+                <td>{{ line.line_subtotal|currency }}</td>
+                <td>{{ line.line_tax|currency }}</td>
+                <td>{{ line.line_total|currency }}</td>
+                <td>{{ line.line_cost|currency }}</td>
+                <td>{{ line.profit_amount|currency }}</td>
+                <td>{{ line.margin_pct }}%</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="10">No line items found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </article>
 
@@ -72,7 +114,25 @@
         </label>
         <div class="schedule-card">
           <div class="row-title">Execution rule</div>
-          <div class="row-subtitle">A job can move forward once the contract is signed and the required deposit is fully received.</div>
+          <div class="row-subtitle">A job can move forward once the contract is signed and the required deposit is fully received against the full contract total.</div>
+        </div>
+        <div class="quote-breakdown compact-breakdown">
+          <div class="quote-breakdown-row">
+            <span>Line items</span>
+            <strong>{{ quote_summary.line_item_count }}</strong>
+          </div>
+          <div class="quote-breakdown-row">
+            <span>Estimated cost</span>
+            <strong>{{ quote_summary.estimated_cost|currency }}</strong>
+          </div>
+          <div class="quote-breakdown-row">
+            <span>Gross profit</span>
+            <strong>{{ quote_summary.profit_amount|currency }}</strong>
+          </div>
+          <div class="quote-breakdown-row total-row">
+            <span>Grand total</span>
+            <strong>{{ quote_summary.grand_total|currency }}</strong>
+          </div>
         </div>
         <div class="form-actions">
           <button class="action-button accent" type="submit">Save contract execution</button>

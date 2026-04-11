@@ -30,6 +30,7 @@ DROP TABLE IF EXISTS inventory_items;
 DROP TABLE IF EXISTS vendors;
 DROP TABLE IF EXISTS deliveries;
 DROP TABLE IF EXISTS jobs;
+DROP TABLE IF EXISTS quote_line_items;
 DROP TABLE IF EXISTS quotes;
 DROP TABLE IF EXISTS opportunities;
 DROP TABLE IF EXISTS leads;
@@ -195,12 +196,42 @@ CREATE TABLE quotes (
     amount REAL NOT NULL,
     estimated_cost REAL NOT NULL,
     target_margin_pct REAL NOT NULL,
+    tax_rate_pct REAL NOT NULL DEFAULT 0,
+    tax_total REAL NOT NULL DEFAULT 0,
+    grand_total REAL NOT NULL DEFAULT 0,
+    discount_total REAL NOT NULL DEFAULT 0,
+    profit_amount REAL NOT NULL DEFAULT 0,
+    line_item_count INTEGER NOT NULL DEFAULT 0,
     deposit_required REAL NOT NULL,
     deposit_received REAL NOT NULL,
     status TEXT NOT NULL,
     signed_date TEXT,
     issue_date TEXT,
     expiration_date TEXT
+);
+
+CREATE TABLE quote_line_items (
+    id INTEGER PRIMARY KEY,
+    branch_id INTEGER NOT NULL REFERENCES branches (id),
+    quote_id INTEGER NOT NULL REFERENCES quotes (id) ON DELETE CASCADE,
+    inventory_item_id INTEGER REFERENCES inventory_items (id),
+    sort_order INTEGER NOT NULL,
+    sku TEXT,
+    item_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    unit_label TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit_cost REAL NOT NULL,
+    unit_price REAL NOT NULL,
+    discount_pct REAL NOT NULL DEFAULT 0,
+    taxable INTEGER NOT NULL DEFAULT 0,
+    tax_rate_pct REAL NOT NULL DEFAULT 0,
+    line_cost REAL NOT NULL,
+    line_subtotal REAL NOT NULL,
+    line_tax REAL NOT NULL DEFAULT 0,
+    line_total REAL NOT NULL,
+    profit_amount REAL NOT NULL,
+    margin_pct REAL NOT NULL
 );
 
 CREATE TABLE jobs (

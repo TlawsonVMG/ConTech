@@ -3,7 +3,7 @@
 {% block title %}ConTech | Quotes{% endblock %}
 {% block kicker %}Sales documents{% endblock %}
 {% block page_title %}Quotes{% endblock %}
-{% block page_description %}Manage streamlined fixed-margin contracts, approvals, and the documents that convert sales work into jobs.{% endblock %}
+{% block page_description %}Manage itemized quotes, contract approvals, and the sales documents that convert directly into jobs.{% endblock %}
 
 {% block page_actions %}
   <a class="action-button accent" href="{{ url_for('crm.quotes_create') }}">New quote</a>
@@ -32,8 +32,8 @@
           <tr>
             <th>Quote</th>
             <th>Customer</th>
-            <th>Status</th>
-            <th>Amount</th>
+            <th>Pricing</th>
+            <th>Metrics</th>
             <th>Dates</th>
             <th>Actions</th>
           </tr>
@@ -45,6 +45,9 @@
                 <div class="row-title">{{ quote.quote_number }} / {{ quote.option_name }}</div>
                 <div class="row-subtitle">{{ quote.description }}</div>
                 <div class="row-subtitle">{{ quote.opportunity_name or 'No linked opportunity' }}</div>
+                <div class="chips top-gap">
+                  <span class="status-pill">{{ quote.status }}</span>
+                </div>
               </td>
               <td>
                 <div class="row-title">{{ quote.customer_name }}</div>
@@ -56,17 +59,23 @@
                 {% endif %}
                 <div class="row-subtitle"><a class="mini-link" href="{{ url_for('crm.customers_detail', customer_id=quote.customer_id) }}">Customer 360</a></div>
               </td>
-              <td>{{ quote.status }}</td>
               <td>
-                <div class="row-title">{{ quote.amount|currency }}</div>
+                <div class="row-title">Subtotal {{ quote.amount|currency }}</div>
+                <div class="row-subtitle">Tax {{ quote.tax_total|currency }}</div>
+                <div class="row-subtitle">Grand total {{ quote.grand_total|currency }}</div>
+                <div class="row-subtitle">Deposit {{ quote.deposit_received|currency }} / {{ quote.deposit_required|currency }}</div>
+              </td>
+              <td>
+                <div class="row-title">Gross profit {{ quote.profit_amount|currency }}</div>
                 <div class="row-subtitle">Est cost {{ quote.estimated_cost|currency }}</div>
-                <div class="row-subtitle">Target margin {{ quote.target_margin_pct }}%</div>
+                <div class="row-subtitle">Margin {{ quote.target_margin_pct }}%</div>
+                <div class="row-subtitle">{{ quote.line_item_count }} line item(s)</div>
               </td>
               <td>
                 <div class="row-subtitle">Signed: {{ quote.signed_date or 'Not signed' }}</div>
                 <div class="row-subtitle">Issued: {{ quote.issue_date or 'Not set' }}</div>
                 <div class="row-subtitle">Expires: {{ quote.expiration_date or 'Not set' }}</div>
-                <div class="row-subtitle">Deposit {{ quote.deposit_received|currency }} / {{ quote.deposit_required|currency }}</div>
+                <div class="row-subtitle">Tax rate {{ quote.tax_rate_pct }}%</div>
               </td>
               <td>
                 <div class="table-actions">

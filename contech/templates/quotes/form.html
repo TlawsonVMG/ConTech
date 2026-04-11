@@ -1,97 +1,543 @@
 {% extends "base.html" %}
 
+{% macro inventory_options(selected_id) -%}
+  <option value="">Manual line item</option>
+  {% for item in inventory_items %}
+    <option
+      value="{{ item.id }}"
+      data-sku="{{ item.sku }}"
+      data-name="{{ item.item_name }}"
+      data-cost="{{ item.unit_cost }}"
+      data-price="{{ item.unit_price }}"
+      data-unit="{{ item.category|lower }}"
+      {% if selected_id and selected_id|string == item.id|string %}selected{% endif %}
+    >
+      {{ item.category }} / {{ item.item_name }} / {{ item.sku }}
+    </option>
+  {% endfor %}
+{%- endmacro %}
+
+{% macro quote_line_row(line) -%}
+  <tr data-quote-line>
+    <td class="quote-item-cell">
+      <select name="line_inventory_item_id" class="quote-grid-select" data-field="inventory">
+        {{ inventory_options(line.get('inventory_item_id')) }}
+      </select>
+      <input type="text" name="line_item_name" value="{{ line.get('item_name', '') }}" placeholder="Line item name" data-field="item-name" />
+    </td>
+    <td class="quote-description-cell">
+      <input type="text" name="line_description" value="{{ line.get('description', '') }}" placeholder="Scope detail, color, size, or install note" data-field="description" />
+    </td>
+    <td>
+      <input type="number" name="line_quantity" min="0" step="0.01" value="{{ line.get('quantity', '') if line.get('quantity') is not none else '' }}" data-field="quantity" />
+    </td>
+    <td>
+      <input type="text" name="line_unit_label" value="{{ line.get('unit_label', 'ea') }}" placeholder="ea" data-field="unit-label" />
+    </td>
+    <td>
+      <input type="number" name="line_unit_price" min="0" step="0.01" value="{{ line.get('unit_price', '') if line.get('unit_price') is not none else '' }}" data-field="unit-price" />
+    </td>
+    <td>
+      <select name="line_taxable" data-field="taxable">
+        <option value="1" {% if line.get('taxable') %}selected{% endif %}>Taxable</option>
+        <option value="0" {% if not line.get('taxable') %}selected{% endif %}>No tax</option>
+      </select>
+    </td>
+    <td class="quote-line-result">
+      <strong data-line-total>{{ line.get('line_total', 0)|currency }}</strong>
+      <div class="row-subtitle">Subtotal <span data-line-subtotal>{{ line.get('line_subtotal', 0)|currency }}</span></div>
+    </td>
+    <td class="quote-metric-column">
+      <input type="text" name="line_sku" value="{{ line.get('sku', '') }}" placeholder="SKU" data-field="sku" />
+    </td>
+    <td class="quote-metric-column">
+      <input type="number" name="line_unit_cost" min="0" step="0.01" value="{{ line.get('unit_cost', '') if line.get('unit_cost') is not none else '' }}" data-field="unit-cost" />
+    </td>
+    <td class="quote-metric-column">
+      <input type="number" name="line_discount_pct" min="0" max="100" step="0.01" value="{{ line.get('discount_pct', 0) }}" data-field="discount" />
+    </td>
+    <td class="quote-metric-column quote-line-result">
+      <strong data-line-cost>{{ line.get('line_cost', 0)|currency }}</strong>
+      <div class="row-subtitle">Cost extension</div>
+    </td>
+    <td class="quote-metric-column quote-line-result">
+      <strong data-line-tax>{{ line.get('line_tax', 0)|currency }}</strong>
+      <div class="row-subtitle">Tax</div>
+    </td>
+    <td class="quote-metric-column quote-line-result">
+      <strong data-line-profit>{{ line.get('profit_amount', 0)|currency }}</strong>
+      <div class="row-subtitle">Gross profit</div>
+    </td>
+    <td class="quote-metric-column quote-line-result">
+      <strong data-line-margin>{{ line.get('margin_pct', 0) }}%</strong>
+      <div class="row-subtitle">Margin</div>
+    </td>
+    <td class="quote-metric-column quote-line-result">
+      <strong data-line-markup>{{ line.get('markup_pct', 0) }}%</strong>
+      <div class="row-subtitle">Markup</div>
+    </td>
+    <td class="quote-line-actions">
+      <button class="mini-link danger-link" type="button" data-remove-line>Remove</button>
+    </td>
+  </tr>
+{%- endmacro %}
+
 {% block title %}ConTech | {% if mode == 'create' %}New Quote{% else %}Edit Quote{% endif %}{% endblock %}
 {% block kicker %}Sales documents{% endblock %}
 {% block page_title %}{% if mode == 'create' %}New Quote{% else %}Edit Quote{% endif %}{% endblock %}
-{% block page_description %}Create a streamlined contract record with fixed-margin pricing that can move directly into production.{% endblock %}
+{% block page_description %}Build an itemized quote worksheet with live pricing, tax, and margin visibility before the contract moves into production.{% endblock %}
 
 {% block page_actions %}
   <a class="action-button" href="{{ url_for('crm.quotes_index') }}">Back to quotes</a>
 {% endblock %}
 
 {% block content %}
-  <form class="card form-grid two-column-form" method="post">
-    <label class="form-field">
-      <span>Linked opportunity</span>
-      <select name="opportunity_id">
-        <option value="">No linked opportunity</option>
-        {% for opportunity in opportunities %}
-          <option value="{{ opportunity.id }}" {% if quote.opportunity_id|string == opportunity.id|string %}selected{% endif %}>{{ opportunity.name }} / {{ opportunity.subtitle }}</option>
-        {% endfor %}
-      </select>
-    </label>
+  <form class="form-grid quote-builder-shell" method="post" id="quote-builder-form">
+    <input type="hidden" name="amount" value="{{ quote.amount if quote.amount is not none else '' }}" data-summary-input="subtotal" />
+    <input type="hidden" name="estimated_cost" value="{{ quote.estimated_cost if quote.estimated_cost is not none else '' }}" data-summary-input="estimated_cost" />
+    <input type="hidden" name="tax_total" value="{{ quote.tax_total if quote.tax_total is not none else '' }}" data-summary-input="tax_total" />
+    <input type="hidden" name="grand_total" value="{{ quote.grand_total if quote.grand_total is not none else '' }}" data-summary-input="grand_total" />
+    <input type="hidden" name="discount_total" value="{{ quote.discount_total if quote.discount_total is not none else '' }}" data-summary-input="discount_total" />
+    <input type="hidden" name="profit_amount" value="{{ quote.profit_amount if quote.profit_amount is not none else '' }}" data-summary-input="profit_amount" />
+    <input type="hidden" name="line_item_count" value="{{ quote.line_item_count if quote.line_item_count is not none else '' }}" data-summary-input="line_item_count" />
 
-    <label class="form-field">
-      <span>Customer</span>
-      <select name="customer_id">
-        <option value="">Select customer</option>
-        {% for customer in customers %}
-          <option value="{{ customer.id }}" {% if quote.customer_id|string == customer.id|string %}selected{% endif %}>{{ customer.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
+    <section class="card form-grid two-column-form">
+      <div class="span-full card-header quote-card-header">
+        <div>
+          <h3 class="panel-title">Quote Setup</h3>
+          <p class="panel-copy">Paradigm-inspired worksheet flow: scope header on top, itemized pricing grid in the middle, and live commercial/residential rollups at the bottom.</p>
+        </div>
+      </div>
 
-    <label class="form-field">
-      <span>Quote number</span>
-      <input type="text" name="quote_number" value="{{ quote.quote_number }}" required />
-    </label>
+      <label class="form-field">
+        <span>Linked opportunity</span>
+        <select name="opportunity_id">
+          <option value="">No linked opportunity</option>
+          {% for opportunity in opportunities %}
+            <option value="{{ opportunity.id }}" {% if quote.opportunity_id|string == opportunity.id|string %}selected{% endif %}>{{ opportunity.name }} / {{ opportunity.subtitle }}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-    <label class="form-field">
-      <span>Quote title</span>
-      <input type="text" name="option_name" value="{{ quote.option_name }}" required />
-    </label>
+      <label class="form-field">
+        <span>Customer</span>
+        <select name="customer_id">
+          <option value="">Select customer</option>
+          {% for customer in customers %}
+            <option value="{{ customer.id }}" {% if quote.customer_id|string == customer.id|string %}selected{% endif %}>{{ customer.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-    <label class="form-field span-full">
-      <span>Description / scope</span>
-      <input type="text" name="description" value="{{ quote.description }}" required />
-    </label>
+      <label class="form-field">
+        <span>Quote number</span>
+        <input type="text" name="quote_number" value="{{ quote.quote_number }}" required />
+      </label>
 
-    <label class="form-field">
-      <span>Amount</span>
-      <input type="number" name="amount" min="0" step="0.01" value="{{ quote.amount if quote.amount is not none else '' }}" required />
-    </label>
+      <label class="form-field">
+        <span>Quote title</span>
+        <input type="text" name="option_name" value="{{ quote.option_name }}" required />
+      </label>
 
-    <label class="form-field">
-      <span>Estimated cost</span>
-      <input type="number" name="estimated_cost" min="0" step="0.01" value="{{ quote.estimated_cost if quote.estimated_cost is not none else '' }}" required />
-    </label>
+      <label class="form-field span-full">
+        <span>Description / scope</span>
+        <input type="text" name="description" value="{{ quote.description }}" required />
+      </label>
 
-    <label class="form-field">
-      <span>Required deposit</span>
-      <input type="number" name="deposit_required" min="0" step="0.01" value="{{ quote.deposit_required if quote.deposit_required is not none else '' }}" required />
-    </label>
+      <label class="form-field">
+        <span>Default tax rate %</span>
+        <input type="number" name="tax_rate_pct" min="0" max="100" step="0.01" value="{{ quote.tax_rate_pct if quote.tax_rate_pct is not none else '0' }}" data-quote-tax-rate />
+      </label>
 
-    <label class="form-field">
-      <span>Received deposit</span>
-      <input type="number" name="deposit_received" min="0" step="0.01" value="{{ quote.deposit_received if quote.deposit_received is not none else '0' }}" required />
-    </label>
+      <label class="form-field">
+        <span>Status</span>
+        <select name="status">
+          {% for status in status_options %}
+            <option value="{{ status }}" {% if quote.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </label>
 
-    <label class="form-field">
-      <span>Status</span>
-      <select name="status">
-        {% for status in status_options %}
-          <option value="{{ status }}" {% if quote.status == status %}selected{% endif %}>{{ status }}</option>
-        {% endfor %}
-      </select>
-    </label>
+      <label class="form-field">
+        <span>Required deposit</span>
+        <input type="number" name="deposit_required" min="0" step="0.01" value="{{ quote.deposit_required if quote.deposit_required is not none else '' }}" required />
+      </label>
 
-    <label class="form-field">
-      <span>Issue date</span>
-      <input type="date" name="issue_date" value="{{ quote.issue_date or '' }}" />
-    </label>
+      <label class="form-field">
+        <span>Received deposit</span>
+        <input type="number" name="deposit_received" min="0" step="0.01" value="{{ quote.deposit_received if quote.deposit_received is not none else '0' }}" required />
+      </label>
 
-    <label class="form-field">
-      <span>Signed date</span>
-      <input type="date" name="signed_date" value="{{ quote.signed_date or '' }}" />
-    </label>
+      <label class="form-field">
+        <span>Issue date</span>
+        <input type="date" name="issue_date" value="{{ quote.issue_date or '' }}" />
+      </label>
 
-    <label class="form-field">
-      <span>Expiration date</span>
-      <input type="date" name="expiration_date" value="{{ quote.expiration_date or '' }}" />
-    </label>
+      <label class="form-field">
+        <span>Signed date</span>
+        <input type="date" name="signed_date" value="{{ quote.signed_date or '' }}" />
+      </label>
 
-    <div class="form-actions span-full">
+      <label class="form-field">
+        <span>Expiration date</span>
+        <input type="date" name="expiration_date" value="{{ quote.expiration_date or '' }}" />
+      </label>
+
+      <div class="schedule-card">
+        <div class="row-title">Quote logic</div>
+        <div class="row-subtitle">Revenue and margin are tracked pre-tax. Tax is broken out separately so your subtotal, tax, and final total stay clean for both residential and commercial sales packages.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header quote-card-header">
+        <div>
+          <h3 class="panel-title">Line Item Builder</h3>
+          <p class="panel-copy">Add each material, labor, trim, or service item as its own line. Use Metrics when you want cost, gross profit, margin, markup, and tax detail without making the default view too dense.</p>
+        </div>
+        <div class="table-actions">
+          <button class="action-button" type="button" data-toggle-metrics>Open metrics</button>
+          <button class="action-button accent" type="button" data-add-line>Add line item</button>
+        </div>
+      </div>
+
+      <div class="table-wrap spreadsheet-table quote-builder-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th>Unit price</th>
+              <th>Tax</th>
+              <th>Line total</th>
+              <th class="quote-metric-column">SKU</th>
+              <th class="quote-metric-column">Unit cost</th>
+              <th class="quote-metric-column">Disc %</th>
+              <th class="quote-metric-column">Cost ext</th>
+              <th class="quote-metric-column">Line tax</th>
+              <th class="quote-metric-column">Gross profit</th>
+              <th class="quote-metric-column">Margin</th>
+              <th class="quote-metric-column">Markup</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody data-quote-lines>
+            {% for line in quote_lines %}
+              {{ quote_line_row(line) }}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="quote-metrics-grid top-gap">
+        <div class="mini-stat">
+          <span class="metric-label">Subtotal</span>
+          <strong data-summary-display="subtotal">{{ quote_summary.subtotal|default(0)|currency }}</strong>
+          <div class="row-subtitle">Sell before tax</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Estimated cost</span>
+          <strong data-summary-display="estimated_cost">{{ quote_summary.estimated_cost|default(0)|currency }}</strong>
+          <div class="row-subtitle">Line-level job cost</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Gross profit</span>
+          <strong data-summary-display="profit_amount">{{ quote_summary.profit_amount|default(0)|currency }}</strong>
+          <div class="row-subtitle">Subtotal less cost</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Gross margin</span>
+          <strong data-summary-display="target_margin_pct">{{ quote_summary.target_margin_pct|default(0) }}%</strong>
+          <div class="row-subtitle">Paradigm-style quote metric</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Markup</span>
+          <strong data-summary-display="markup_pct">{{ quote_summary.markup_pct|default(0) }}%</strong>
+          <div class="row-subtitle">Profit against cost</div>
+        </div>
+        <div class="mini-stat">
+          <span class="metric-label">Line items</span>
+          <strong data-summary-display="line_item_count">{{ quote_summary.line_item_count|default(0) }}</strong>
+          <div class="row-subtitle">Worksheet rows</div>
+        </div>
+      </div>
+
+      <div class="quote-breakdown top-gap">
+        <div class="quote-breakdown-row">
+          <span>List total</span>
+          <strong data-summary-display="list_total">{{ quote_summary.list_total|default(0)|currency }}</strong>
+        </div>
+        <div class="quote-breakdown-row">
+          <span>Discounts</span>
+          <strong data-summary-display="discount_total">{{ quote_summary.discount_total|default(0)|currency }}</strong>
+        </div>
+        <div class="quote-breakdown-row">
+          <span>Taxable subtotal</span>
+          <strong data-summary-display="taxable_subtotal">{{ quote_summary.taxable_subtotal|default(0)|currency }}</strong>
+        </div>
+        <div class="quote-breakdown-row">
+          <span>Subtotal</span>
+          <strong data-summary-display="subtotal">{{ quote_summary.subtotal|default(0)|currency }}</strong>
+        </div>
+        <div class="quote-breakdown-row">
+          <span>Tax</span>
+          <strong data-summary-display="tax_total">{{ quote_summary.tax_total|default(0)|currency }}</strong>
+        </div>
+        <div class="quote-breakdown-row total-row">
+          <span>Grand total</span>
+          <strong data-summary-display="grand_total">{{ quote_summary.grand_total|default(0)|currency }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <div class="form-actions">
       <button class="action-button accent" type="submit">{% if mode == 'create' %}Create quote{% else %}Save quote{% endif %}</button>
     </div>
   </form>
+
+  <template id="quote-line-template">
+    {{ quote_line_row({
+      'inventory_item_id': '',
+      'sku': '',
+      'item_name': '',
+      'description': '',
+      'quantity': 1,
+      'unit_label': 'ea',
+      'unit_cost': '',
+      'unit_price': '',
+      'discount_pct': 0,
+      'taxable': 0,
+      'line_total': 0,
+      'line_subtotal': 0,
+      'line_cost': 0,
+      'line_tax': 0,
+      'profit_amount': 0,
+      'margin_pct': 0,
+      'markup_pct': 0
+    }) }}
+  </template>
+
+  <script>
+    (function () {
+      const form = document.getElementById("quote-builder-form");
+      if (!form) return;
+
+      const shell = form;
+      const taxRateInput = form.querySelector("[data-quote-tax-rate]");
+      const linesBody = form.querySelector("[data-quote-lines]");
+      const lineTemplate = document.getElementById("quote-line-template");
+      const addButton = form.querySelector("[data-add-line]");
+      const toggleMetricsButton = form.querySelector("[data-toggle-metrics]");
+      const summaryInputs = Object.fromEntries(
+        Array.from(form.querySelectorAll("[data-summary-input]")).map((input) => [input.dataset.summaryInput, input])
+      );
+      const summaryDisplays = {};
+      form.querySelectorAll("[data-summary-display]").forEach((node) => {
+        const key = node.dataset.summaryDisplay;
+        summaryDisplays[key] = summaryDisplays[key] || [];
+        summaryDisplays[key].push(node);
+      });
+
+      const currencyFormatter = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      function toNumber(value) {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      function formatCurrency(value) {
+        return currencyFormatter.format(value || 0);
+      }
+
+      function formatPercent(value) {
+        return `${(value || 0).toFixed(1)}%`;
+      }
+
+      function setSummary(key, value, formatter = formatCurrency) {
+        if (summaryInputs[key]) {
+          summaryInputs[key].value = typeof value === "number" ? value.toFixed(2) : value;
+        }
+        (summaryDisplays[key] || []).forEach((node) => {
+          node.textContent = formatter(value);
+        });
+      }
+
+      function setSummaryCount(key, value) {
+        if (summaryInputs[key]) {
+          summaryInputs[key].value = value;
+        }
+        (summaryDisplays[key] || []).forEach((node) => {
+          node.textContent = value;
+        });
+      }
+
+      function applyInventoryDefaults(row) {
+        const inventorySelect = row.querySelector('[data-field="inventory"]');
+        const selectedOption = inventorySelect?.selectedOptions?.[0];
+        if (!selectedOption || !selectedOption.value) return;
+
+        const skuInput = row.querySelector('[data-field="sku"]');
+        const itemNameInput = row.querySelector('[data-field="item-name"]');
+        const unitCostInput = row.querySelector('[data-field="unit-cost"]');
+        const unitPriceInput = row.querySelector('[data-field="unit-price"]');
+        const unitLabelInput = row.querySelector('[data-field="unit-label"]');
+
+        if (skuInput && !skuInput.value) skuInput.value = selectedOption.dataset.sku || "";
+        if (itemNameInput && !itemNameInput.value) itemNameInput.value = selectedOption.dataset.name || "";
+        if (unitCostInput && !unitCostInput.value) unitCostInput.value = selectedOption.dataset.cost || "";
+        if (unitPriceInput && !unitPriceInput.value) unitPriceInput.value = selectedOption.dataset.price || "";
+        if (unitLabelInput && !unitLabelInput.value) unitLabelInput.value = selectedOption.dataset.unit || "ea";
+      }
+
+      function updateRow(row) {
+        applyInventoryDefaults(row);
+        const quantity = toNumber(row.querySelector('[data-field="quantity"]')?.value);
+        const unitCost = toNumber(row.querySelector('[data-field="unit-cost"]')?.value);
+        const unitPrice = toNumber(row.querySelector('[data-field="unit-price"]')?.value);
+        const discountPct = toNumber(row.querySelector('[data-field="discount"]')?.value);
+        const taxable = row.querySelector('[data-field="taxable"]')?.value === "1";
+        const taxRatePct = taxable ? toNumber(taxRateInput?.value) : 0;
+
+        const listTotal = quantity * unitPrice;
+        const discountAmount = listTotal * (discountPct / 100);
+        const lineSubtotal = listTotal - discountAmount;
+        const lineCost = quantity * unitCost;
+        const lineTax = taxable ? lineSubtotal * (taxRatePct / 100) : 0;
+        const lineTotal = lineSubtotal + lineTax;
+        const grossProfit = lineSubtotal - lineCost;
+        const marginPct = lineSubtotal > 0 ? (grossProfit / lineSubtotal) * 100 : 0;
+        const markupPct = lineCost > 0 ? (grossProfit / lineCost) * 100 : 0;
+
+        row.querySelector("[data-line-subtotal]").textContent = formatCurrency(lineSubtotal);
+        row.querySelector("[data-line-total]").textContent = formatCurrency(lineTotal);
+        row.querySelector("[data-line-cost]").textContent = formatCurrency(lineCost);
+        row.querySelector("[data-line-tax]").textContent = formatCurrency(lineTax);
+        row.querySelector("[data-line-profit]").textContent = formatCurrency(grossProfit);
+        row.querySelector("[data-line-margin]").textContent = formatPercent(marginPct);
+        row.querySelector("[data-line-markup]").textContent = formatPercent(markupPct);
+
+        return {
+          listTotal,
+          discountAmount,
+          lineSubtotal,
+          lineCost,
+          lineTax,
+          lineTotal,
+          grossProfit,
+          taxableSubtotal: taxable ? lineSubtotal : 0,
+        };
+      }
+
+      function recalc() {
+        const rows = Array.from(linesBody.querySelectorAll("[data-quote-line]"));
+        const summary = rows.reduce(
+          (totals, row) => {
+            const rowTotals = updateRow(row);
+            totals.listTotal += rowTotals.listTotal;
+            totals.discountTotal += rowTotals.discountAmount;
+            totals.subtotal += rowTotals.lineSubtotal;
+            totals.estimatedCost += rowTotals.lineCost;
+            totals.taxTotal += rowTotals.lineTax;
+            totals.grandTotal += rowTotals.lineTotal;
+            totals.profitAmount += rowTotals.grossProfit;
+            totals.taxableSubtotal += rowTotals.taxableSubtotal;
+            return totals;
+          },
+          {
+            listTotal: 0,
+            discountTotal: 0,
+            subtotal: 0,
+            estimatedCost: 0,
+            taxTotal: 0,
+            grandTotal: 0,
+            profitAmount: 0,
+            taxableSubtotal: 0,
+          }
+        );
+
+        const marginPct = summary.subtotal > 0 ? (summary.profitAmount / summary.subtotal) * 100 : 0;
+        const markupPct = summary.estimatedCost > 0 ? (summary.profitAmount / summary.estimatedCost) * 100 : 0;
+
+        setSummary("list_total", summary.listTotal);
+        setSummary("discount_total", summary.discountTotal);
+        setSummary("taxable_subtotal", summary.taxableSubtotal);
+        setSummary("subtotal", summary.subtotal);
+        setSummary("estimated_cost", summary.estimatedCost);
+        setSummary("tax_total", summary.taxTotal);
+        setSummary("grand_total", summary.grandTotal);
+        setSummary("profit_amount", summary.profitAmount);
+        (summaryDisplays.target_margin_pct || []).forEach((node) => {
+          node.textContent = formatPercent(marginPct);
+        });
+        (summaryDisplays.markup_pct || []).forEach((node) => {
+          node.textContent = formatPercent(markupPct);
+        });
+        setSummaryCount("line_item_count", rows.length);
+      }
+
+      function addRow() {
+        const fragment = lineTemplate.content.cloneNode(true);
+        linesBody.appendChild(fragment);
+        recalc();
+      }
+
+      function removeRow(row) {
+        const rows = linesBody.querySelectorAll("[data-quote-line]");
+        if (rows.length <= 1) {
+          row.querySelectorAll("input").forEach((input) => {
+            input.value = input.name === "line_quantity" ? "1" : "";
+          });
+          const taxableSelect = row.querySelector('[data-field="taxable"]');
+          if (taxableSelect) taxableSelect.value = "0";
+          recalc();
+          return;
+        }
+        row.remove();
+        recalc();
+      }
+
+      addButton?.addEventListener("click", addRow);
+      toggleMetricsButton?.addEventListener("click", () => {
+        shell.classList.toggle("metrics-open");
+        toggleMetricsButton.textContent = shell.classList.contains("metrics-open") ? "Hide metrics" : "Open metrics";
+      });
+
+      form.addEventListener("input", (event) => {
+        if (event.target.closest("[data-quote-line]") || event.target === taxRateInput) {
+          recalc();
+        }
+      });
+
+      form.addEventListener("change", (event) => {
+        if (event.target.matches('[data-field="inventory"]')) {
+          const row = event.target.closest("[data-quote-line]");
+          if (row) {
+            row.querySelector('[data-field="sku"]').value = "";
+            row.querySelector('[data-field="item-name"]').value = "";
+            row.querySelector('[data-field="unit-cost"]').value = "";
+            row.querySelector('[data-field="unit-price"]').value = "";
+            applyInventoryDefaults(row);
+          }
+        }
+        if (event.target.closest("[data-quote-line]") || event.target === taxRateInput) {
+          recalc();
+        }
+      });
+
+      form.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-remove-line]");
+        if (!removeButton) return;
+        removeRow(removeButton.closest("[data-quote-line]"));
+      });
+
+      recalc();
+    })();
+  </script>
 {% endblock %}

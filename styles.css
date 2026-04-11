@@ -1161,6 +1161,103 @@ tbody tr:last-child td {
   margin-top: 1rem;
 }
 
+.quote-builder-shell {
+  gap: 1.25rem;
+}
+
+.quote-card-header {
+  align-items: center;
+}
+
+.quote-builder-table table {
+  min-width: 1560px;
+}
+
+.quote-builder-table input,
+.quote-builder-table select {
+  min-width: 100%;
+  width: 100%;
+  padding: 0.7rem 0.75rem;
+}
+
+.quote-grid-select {
+  margin-bottom: 0.45rem;
+}
+
+.quote-item-cell,
+.quote-description-cell {
+  min-width: 240px;
+}
+
+.quote-item-cell input,
+.quote-description-cell input {
+  margin-top: 0.45rem;
+}
+
+.quote-line-result strong {
+  display: block;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: 1rem;
+}
+
+.quote-line-actions {
+  white-space: nowrap;
+}
+
+.quote-metric-column {
+  display: none;
+}
+
+.quote-builder-shell.metrics-open .quote-metric-column {
+  display: table-cell;
+}
+
+.quote-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.quote-breakdown {
+  margin-left: auto;
+  width: min(100%, 420px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #fff8f5 0%, #fff1ec 100%);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.quote-breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid rgba(223, 201, 194, 0.8);
+}
+
+.quote-breakdown-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.quote-breakdown-row:first-child {
+  padding-top: 0;
+}
+
+.quote-breakdown-row.total-row {
+  color: var(--accent-strong);
+}
+
+.quote-breakdown-row strong {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+.compact-breakdown {
+  width: 100%;
+}
+
 @keyframes float-in {
   from {
     opacity: 0;
@@ -1224,6 +1321,7 @@ tbody tr:last-child td {
 @media (max-width: 900px) {
   .overview-strip,
   .mini-stat-grid,
+  .quote-metrics-grid,
   .customer-grid,
   .split-grid,
   .kpi-cluster {

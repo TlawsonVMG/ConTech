@@ -368,6 +368,12 @@ def _quote_form_data(form):
         "description": form.get("description", "").strip(),
         "amount": _optional_float(form.get("amount")),
         "estimated_cost": _optional_float(form.get("estimated_cost")),
+        "tax_rate_pct": _optional_float(form.get("tax_rate_pct")),
+        "tax_total": _optional_float(form.get("tax_total")),
+        "grand_total": _optional_float(form.get("grand_total")),
+        "discount_total": _optional_float(form.get("discount_total")),
+        "profit_amount": _optional_float(form.get("profit_amount")),
+        "line_item_count": _optional_int(form.get("line_item_count")),
         "deposit_required": _optional_float(form.get("deposit_required")),
         "deposit_received": _optional_float(form.get("deposit_received")),
         "status": form.get("status", "Draft").strip(),
@@ -377,10 +383,247 @@ def _quote_form_data(form):
     }
 
 
+def _round_money(value):
+    return round(float(value or 0), 2)
+
+
 def _calculate_margin_pct(amount, estimated_cost):
     if amount in (None, 0) or estimated_cost is None:
         return 0
     return round(((amount - estimated_cost) / amount) * 100, 1)
+
+
+def _calculate_markup_pct(profit_amount, estimated_cost):
+    if estimated_cost in (None, 0):
+        return 0
+    return round((profit_amount / estimated_cost) * 100, 1)
+
+
+def _quote_line_rows_from_form(form):
+    fields = [
+        "line_inventory_item_id",
+        "line_sku",
+        "line_item_name",
+        "line_description",
+        "line_quantity",
+        "line_unit_label",
+        "line_unit_cost",
+        "line_unit_price",
+        "line_discount_pct",
+        "line_taxable",
+    ]
+    values_by_field = {field: form.getlist(field) for field in fields}
+    row_count = max((len(values) for values in values_by_field.values()), default=0)
+    rows = []
+    for index in range(row_count):
+        raw = {field: (values_by_field[field][index].strip() if index < len(values_by_field[field]) else "") for field in fields}
+        is_blank = not any(
+            raw[key]
+            for key in (
+                "line_inventory_item_id",
+                "line_sku",
+                "line_item_name",
+                "line_description",
+                "line_quantity",
+                "line_unit_label",
+                "line_unit_cost",
+                "line_unit_price",
+                "line_discount_pct",
+            )
+        )
+        if is_blank:
+            continue
+        rows.append(
+            {
+                "inventory_item_id": _optional_int(raw["line_inventory_item_id"]),
+                "sku": raw["line_sku"],
+                "item_name": raw["line_item_name"],
+                "description": raw["line_description"],
+                "quantity": _optional_float(raw["line_quantity"]),
+                "unit_label": raw["line_unit_label"],
+                "unit_cost": _optional_float(raw["line_unit_cost"]),
+                "unit_price": _optional_float(raw["line_unit_price"]),
+                "discount_pct": _optional_float(raw["line_discount_pct"]),
+                "taxable": 1 if raw["line_taxable"] == "1" else 0,
+            }
+        )
+    return rows
+
+
+def _normalize_quote_line_item(row, sort_order, default_tax_rate_pct):
+    inventory_item = _fetch_inventory_item(row["inventory_item_id"]) if row.get("inventory_item_id") else None
+    quantity = row.get("quantity")
+    unit_cost = row.get("unit_cost")
+    unit_price = row.get("unit_price")
+    if quantity is None and inventory_item is not None:
+        quantity = 1
+    if unit_cost is None and inventory_item is not None:
+        unit_cost = inventory_item["unit_cost"]
+    if unit_price is None and inventory_item is not None:
+        unit_price = inventory_item["unit_price"]
+
+    quantity = quantity if quantity is not None else None
+    unit_cost = unit_cost if unit_cost is not None else None
+    unit_price = unit_price if unit_price is not None else None
+    discount_pct = row.get("discount_pct")
+    discount_pct = 0 if discount_pct is None else discount_pct
+    discount_pct = round(discount_pct, 2)
+    tax_rate_pct = _round_money(default_tax_rate_pct) if row.get("taxable") else 0
+
+    list_total = _round_money((quantity or 0) * (unit_price or 0))
+    discount_amount = _round_money(list_total * (discount_pct / 100))
+    line_subtotal = _round_money(list_total - discount_amount)
+    line_cost = _round_money((quantity or 0) * (unit_cost or 0))
+    line_tax = _round_money(line_subtotal * (tax_rate_pct / 100)) if row.get("taxable") else 0
+    line_total = _round_money(line_subtotal + line_tax)
+    profit_amount = _round_money(line_subtotal - line_cost)
+    margin_pct = _calculate_margin_pct(line_subtotal, line_cost)
+    markup_pct = _calculate_markup_pct(profit_amount, line_cost)
+
+    return {
+        "inventory_item_id": row.get("inventory_item_id"),
+        "sort_order": sort_order,
+        "sku": row.get("sku") or (inventory_item["sku"] if inventory_item else ""),
+        "item_name": row.get("item_name") or (inventory_item["item_name"] if inventory_item else ""),
+        "description": row.get("description") or "",
+        "unit_label": row.get("unit_label") or "ea",
+        "quantity": quantity,
+        "unit_cost": unit_cost,
+        "unit_price": unit_price,
+        "discount_pct": discount_pct,
+        "taxable": 1 if row.get("taxable") else 0,
+        "tax_rate_pct": tax_rate_pct,
+        "list_total": list_total,
+        "discount_amount": discount_amount,
+        "line_cost": line_cost,
+        "line_subtotal": line_subtotal,
+        "line_tax": line_tax,
+        "line_total": line_total,
+        "profit_amount": profit_amount,
+        "margin_pct": margin_pct,
+        "markup_pct": markup_pct,
+    }
+
+
+def _fallback_quote_line_items(data):
+    if data.get("amount") is None and data.get("estimated_cost") is None:
+        return []
+    return [
+        _normalize_quote_line_item(
+            {
+                "inventory_item_id": None,
+                "sku": "",
+                "item_name": data.get("option_name") or "Quote line",
+                "description": data.get("description") or "",
+                "quantity": 1,
+                "unit_label": "lot",
+                "unit_cost": data.get("estimated_cost") or 0,
+                "unit_price": data.get("amount") or 0,
+                "discount_pct": 0,
+                "taxable": 1 if (data.get("tax_rate_pct") or 0) > 0 else 0,
+            },
+            1,
+            data.get("tax_rate_pct") or 0,
+        )
+    ]
+
+
+def _summarize_quote_line_items(lines, default_tax_rate_pct=0):
+    subtotal = _round_money(sum(line["line_subtotal"] for line in lines))
+    estimated_cost = _round_money(sum(line["line_cost"] for line in lines))
+    discount_total = _round_money(sum(line["discount_amount"] for line in lines))
+    tax_total = _round_money(sum(line["line_tax"] for line in lines))
+    taxable_subtotal = _round_money(sum(line["line_subtotal"] for line in lines if line["taxable"]))
+    list_total = _round_money(sum(line["list_total"] for line in lines))
+    grand_total = _round_money(subtotal + tax_total)
+    profit_amount = _round_money(subtotal - estimated_cost)
+    target_margin_pct = _calculate_margin_pct(subtotal, estimated_cost)
+    markup_pct = _calculate_markup_pct(profit_amount, estimated_cost)
+    return {
+        "list_total": list_total,
+        "subtotal": subtotal,
+        "estimated_cost": estimated_cost,
+        "discount_total": discount_total,
+        "tax_rate_pct": _round_money(default_tax_rate_pct),
+        "taxable_subtotal": taxable_subtotal,
+        "tax_total": tax_total,
+        "grand_total": grand_total,
+        "profit_amount": profit_amount,
+        "target_margin_pct": target_margin_pct,
+        "markup_pct": markup_pct,
+        "line_item_count": len(lines),
+    }
+
+
+def _quote_builder_from_form(form, data):
+    default_tax_rate_pct = data.get("tax_rate_pct") or 0
+    raw_lines = _quote_line_rows_from_form(form)
+    lines = [
+        _normalize_quote_line_item(row, sort_order=index, default_tax_rate_pct=default_tax_rate_pct)
+        for index, row in enumerate(raw_lines, start=1)
+    ]
+    if not lines:
+        lines = _fallback_quote_line_items(data)
+    summary = _summarize_quote_line_items(lines, default_tax_rate_pct=default_tax_rate_pct)
+    data["amount"] = summary["subtotal"]
+    data["estimated_cost"] = summary["estimated_cost"]
+    data["tax_rate_pct"] = summary["tax_rate_pct"]
+    data["tax_total"] = summary["tax_total"]
+    data["grand_total"] = summary["grand_total"]
+    data["discount_total"] = summary["discount_total"]
+    data["profit_amount"] = summary["profit_amount"]
+    data["line_item_count"] = summary["line_item_count"]
+    return lines, summary
+
+
+def _quote_line_presenter(line):
+    row = dict(line)
+    quantity = row.get("quantity") or 0
+    unit_price = row.get("unit_price") or 0
+    line_subtotal = row.get("line_subtotal") or 0
+    line_cost = row.get("line_cost") or 0
+    profit_amount = row.get("profit_amount") or 0
+    row["list_total"] = _round_money(quantity * unit_price)
+    row["discount_amount"] = _round_money(row["list_total"] - line_subtotal)
+    row["markup_pct"] = _calculate_markup_pct(profit_amount, line_cost)
+    row["discount_pct"] = row.get("discount_pct") or 0
+    row["taxable"] = 1 if row.get("taxable") else 0
+    return row
+
+
+def _quote_display_package(quote, lines):
+    summary = _summarize_quote_line_items(lines, default_tax_rate_pct=quote.get("tax_rate_pct") or 0)
+    summary["subtotal"] = _round_money(quote.get("amount") or summary["subtotal"])
+    summary["estimated_cost"] = _round_money(quote.get("estimated_cost") or summary["estimated_cost"])
+    summary["tax_total"] = _round_money(quote.get("tax_total") or summary["tax_total"])
+    summary["grand_total"] = _round_money(quote.get("grand_total") or summary["grand_total"])
+    summary["discount_total"] = _round_money(quote.get("discount_total") or summary["discount_total"])
+    summary["profit_amount"] = _round_money(quote.get("profit_amount") or summary["profit_amount"])
+    summary["line_item_count"] = quote.get("line_item_count") or summary["line_item_count"]
+    summary["target_margin_pct"] = _calculate_margin_pct(summary["subtotal"], summary["estimated_cost"])
+    summary["markup_pct"] = _calculate_markup_pct(summary["profit_amount"], summary["estimated_cost"])
+    return summary
+
+
+def _default_quote_lines(data):
+    return _fallback_quote_line_items(data) or [
+        _normalize_quote_line_item(
+            {
+                "inventory_item_id": None,
+                "sku": "",
+                "item_name": "Base scope",
+                "description": data.get("description") or "",
+                "quantity": 1,
+                "unit_label": "lot",
+                "unit_cost": 0,
+                "unit_price": 0,
+                "discount_pct": 0,
+                "taxable": 0,
+            },
+            1,
+            data.get("tax_rate_pct") or 0,
+        )
+    ]
 
 
 def _job_board_phase(status):
@@ -437,24 +680,44 @@ def _validate_quote_form(data):
         errors.append("Quote title is required.")
     if not data["description"]:
         errors.append("Quote description is required.")
+    if data.get("tax_rate_pct") is None or data["tax_rate_pct"] < 0 or data["tax_rate_pct"] > 100:
+        errors.append("Tax rate must be between 0 and 100.")
     if data["amount"] is None or data["amount"] < 0:
-        errors.append("Quote amount must be a positive number.")
+        errors.append("Quote subtotal must be zero or a positive number.")
     if data["estimated_cost"] is None or data["estimated_cost"] < 0:
-        errors.append("Estimated cost must be a positive number.")
-    if data["amount"] is not None and data["estimated_cost"] is not None and data["estimated_cost"] > data["amount"]:
-        errors.append("Estimated cost cannot exceed contract amount.")
+        errors.append("Estimated cost must be zero or a positive number.")
     if data["deposit_required"] is None or data["deposit_required"] < 0:
         errors.append("Required deposit must be zero or a positive number.")
-    if data["amount"] is not None and data["deposit_required"] is not None and data["deposit_required"] > data["amount"]:
+    contract_total = data.get("grand_total") if data.get("grand_total") is not None else data.get("amount")
+    if contract_total is not None and data["deposit_required"] is not None and data["deposit_required"] > contract_total:
         errors.append("Required deposit cannot exceed contract amount.")
     if data["deposit_received"] is None or data["deposit_received"] < 0:
         errors.append("Received deposit must be zero or a positive number.")
-    if data["amount"] is not None and data["deposit_received"] is not None and data["deposit_received"] > data["amount"]:
+    if contract_total is not None and data["deposit_received"] is not None and data["deposit_received"] > contract_total:
         errors.append("Received deposit cannot exceed contract amount.")
     if data["status"] == "Approved" and not data["signed_date"]:
         errors.append("Approved contracts need a signed date.")
     if data["status"] not in QUOTE_STATUSES:
         errors.append("Quote status is invalid.")
+    return errors
+
+
+def _validate_quote_line_items(lines):
+    errors = []
+    if not lines:
+        errors.append("Add at least one line item to the quote.")
+        return errors
+    for index, line in enumerate(lines, start=1):
+        if not line["item_name"]:
+            errors.append(f"Line {index}: item name is required.")
+        if line["quantity"] is None or line["quantity"] <= 0:
+            errors.append(f"Line {index}: quantity must be greater than zero.")
+        if line["unit_cost"] is None or line["unit_cost"] < 0:
+            errors.append(f"Line {index}: unit cost must be zero or a positive number.")
+        if line["unit_price"] is None or line["unit_price"] < 0:
+            errors.append(f"Line {index}: unit price must be zero or a positive number.")
+        if line["discount_pct"] < 0 or line["discount_pct"] > 100:
+            errors.append(f"Line {index}: discount must be between 0 and 100.")
     return errors
 
 
@@ -944,6 +1207,19 @@ def _fetch_quote(quote_id):
     return get_db().execute("SELECT * FROM quotes WHERE id = ? AND branch_id = ?", (quote_id, _current_branch_id())).fetchone()
 
 
+def _fetch_quote_line_items(quote_id):
+    rows = get_db().execute(
+        """
+        SELECT *
+        FROM quote_line_items
+        WHERE quote_id = ? AND branch_id = ?
+        ORDER BY sort_order, id
+        """,
+        (quote_id, _current_branch_id()),
+    ).fetchall()
+    return [_quote_line_presenter(row) for row in rows]
+
+
 def _fetch_job(job_id):
     return get_db().execute("SELECT * FROM jobs WHERE id = ? AND branch_id = ?", (job_id, _current_branch_id())).fetchone()
 
@@ -1086,6 +1362,7 @@ def _inventory_item_choices():
     return get_db().execute(
         """
         SELECT i.id, i.sku, i.item_name, i.category, i.stock_on_hand, i.reserved_qty,
+               i.unit_cost, i.unit_price, i.status,
                v.name AS vendor_name
         FROM inventory_items i
         LEFT JOIN vendors v ON v.id = i.vendor_id
@@ -1094,6 +1371,44 @@ def _inventory_item_choices():
         """,
         (_current_branch_id(),),
     ).fetchall()
+
+
+def _save_quote_line_items(db, quote_id, lines):
+    db.execute("DELETE FROM quote_line_items WHERE quote_id = ?", (quote_id,))
+    db.executemany(
+        """
+        INSERT INTO quote_line_items (
+            branch_id, quote_id, inventory_item_id, sort_order, sku, item_name, description,
+            unit_label, quantity, unit_cost, unit_price, discount_pct, taxable, tax_rate_pct,
+            line_cost, line_subtotal, line_tax, line_total, profit_amount, margin_pct
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                _current_branch_id(),
+                quote_id,
+                line["inventory_item_id"],
+                line["sort_order"],
+                line["sku"],
+                line["item_name"],
+                line["description"],
+                line["unit_label"],
+                line["quantity"],
+                line["unit_cost"],
+                line["unit_price"],
+                line["discount_pct"],
+                line["taxable"],
+                line["tax_rate_pct"],
+                line["line_cost"],
+                line["line_subtotal"],
+                line["line_tax"],
+                line["line_total"],
+                line["profit_amount"],
+                line["margin_pct"],
+            )
+            for line in lines
+        ],
+    )
 
 
 def _next_document_number(prefix, table_name, column_name):
@@ -2869,10 +3184,16 @@ def quotes_create():
         "opportunity_id": opportunity["id"] if opportunity else None,
         "customer_id": opportunity["customer_id"] if opportunity else None,
         "quote_number": _next_document_number("Q", "quotes", "quote_number"),
-        "option_name": "Standard",
+        "option_name": "Base quote",
         "description": opportunity["subtitle"] if opportunity else "",
         "amount": suggested_amount,
         "estimated_cost": round(suggested_amount * 0.67, 2) if suggested_amount else None,
+        "tax_rate_pct": 0,
+        "tax_total": 0,
+        "grand_total": suggested_amount,
+        "discount_total": 0,
+        "profit_amount": round(suggested_amount * 0.33, 2) if suggested_amount else 0,
+        "line_item_count": 1 if suggested_amount else 0,
         "deposit_required": round(suggested_amount * 0.25, 2) if suggested_amount else 0,
         "deposit_received": 0,
         "status": "Draft",
@@ -2880,19 +3201,24 @@ def quotes_create():
         "issue_date": datetime.now().date().isoformat(),
         "expiration_date": None,
     }
+    quote_lines = _default_quote_lines(data) if request.method == "GET" else []
+    quote_summary = _summarize_quote_line_items(quote_lines, default_tax_rate_pct=data.get("tax_rate_pct") or 0) if quote_lines else {}
 
     if request.method == "POST":
+        quote_lines, quote_summary = _quote_builder_from_form(request.form, data)
         errors = _validate_quote_form(data)
+        errors.extend(_validate_quote_line_items(quote_lines))
         if not errors:
             db = get_db()
-            target_margin_pct = _calculate_margin_pct(data["amount"], data["estimated_cost"])
+            target_margin_pct = quote_summary["target_margin_pct"]
             db.execute(
                 """
                 INSERT INTO quotes (
                     branch_id, opportunity_id, customer_id, quote_number, option_name,
-                    description, amount, estimated_cost, target_margin_pct, deposit_required,
-                    deposit_received, status, signed_date, issue_date, expiration_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    description, amount, estimated_cost, target_margin_pct, tax_rate_pct,
+                    tax_total, grand_total, discount_total, profit_amount, line_item_count,
+                    deposit_required, deposit_received, status, signed_date, issue_date, expiration_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     _current_branch_id(),
@@ -2904,6 +3230,12 @@ def quotes_create():
                     data["amount"],
                     data["estimated_cost"],
                     target_margin_pct,
+                    data["tax_rate_pct"],
+                    data["tax_total"],
+                    data["grand_total"],
+                    data["discount_total"],
+                    data["profit_amount"],
+                    data["line_item_count"],
                     data["deposit_required"],
                     data["deposit_received"],
                     data["status"],
@@ -2912,6 +3244,17 @@ def quotes_create():
                     data["expiration_date"],
                 ),
             )
+            quote_id = db.execute(
+                """
+                SELECT id
+                FROM quotes
+                WHERE branch_id = ? AND quote_number = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (_current_branch_id(), data["quote_number"]),
+            ).fetchone()["id"]
+            _save_quote_line_items(db, quote_id, quote_lines)
             if data["opportunity_id"]:
                 db.execute(
                     "UPDATE opportunities SET stage = ? WHERE id = ?",
@@ -2923,7 +3266,11 @@ def quotes_create():
                     "System",
                     g.user["full_name"] if g.get("user") else "System",
                     f"Contract created: {data['quote_number']}",
-                    f"{data['option_name']} for {data['amount']:,.2f} with target margin {target_margin_pct:.1f}%.",
+                    (
+                        f"{quote_summary['line_item_count']} line item(s), subtotal {quote_summary['subtotal']:,.2f}, "
+                        f"tax {quote_summary['tax_total']:,.2f}, total {quote_summary['grand_total']:,.2f}, "
+                        f"gross margin {target_margin_pct:.1f}%."
+                    ),
                 )
             db.commit()
             flash("Quote created.", "success")
@@ -2936,8 +3283,11 @@ def quotes_create():
         "quotes/form.html",
         mode="create",
         quote=data,
+        quote_lines=quote_lines,
+        quote_summary=quote_summary,
         customers=_customer_choices(),
         opportunities=_opportunity_choices(),
+        inventory_items=_inventory_item_choices(),
         status_options=QUOTE_STATUSES,
     )
 
@@ -2950,18 +3300,25 @@ def quotes_edit(quote_id):
         abort(404)
 
     data = dict(quote)
+    quote_lines = _fetch_quote_line_items(quote_id)
+    if not quote_lines:
+        quote_lines = _default_quote_lines(data)
+    quote_summary = _quote_display_package(data, quote_lines)
     if request.method == "POST":
         data = _quote_form_data(request.form)
+        quote_lines, quote_summary = _quote_builder_from_form(request.form, data)
         errors = _validate_quote_form(data)
+        errors.extend(_validate_quote_line_items(quote_lines))
         if not errors:
             db = get_db()
-            target_margin_pct = _calculate_margin_pct(data["amount"], data["estimated_cost"])
+            target_margin_pct = quote_summary["target_margin_pct"]
             db.execute(
                 """
                 UPDATE quotes
                 SET opportunity_id = ?, customer_id = ?, quote_number = ?, option_name = ?, description = ?,
-                    amount = ?, estimated_cost = ?, target_margin_pct = ?, deposit_required = ?,
-                    deposit_received = ?, status = ?, signed_date = ?, issue_date = ?, expiration_date = ?
+                    amount = ?, estimated_cost = ?, target_margin_pct = ?, tax_rate_pct = ?, tax_total = ?,
+                    grand_total = ?, discount_total = ?, profit_amount = ?, line_item_count = ?,
+                    deposit_required = ?, deposit_received = ?, status = ?, signed_date = ?, issue_date = ?, expiration_date = ?
                 WHERE id = ?
                 """,
                 (
@@ -2973,6 +3330,12 @@ def quotes_edit(quote_id):
                     data["amount"],
                     data["estimated_cost"],
                     target_margin_pct,
+                    data["tax_rate_pct"],
+                    data["tax_total"],
+                    data["grand_total"],
+                    data["discount_total"],
+                    data["profit_amount"],
+                    data["line_item_count"],
                     data["deposit_required"],
                     data["deposit_received"],
                     data["status"],
@@ -2982,6 +3345,12 @@ def quotes_edit(quote_id):
                     quote_id,
                 ),
             )
+            _save_quote_line_items(db, quote_id, quote_lines)
+            if data["opportunity_id"]:
+                db.execute(
+                    "UPDATE opportunities SET stage = ? WHERE id = ?",
+                    ("Quoted", data["opportunity_id"]),
+                )
             db.commit()
             flash("Quote updated.", "success")
             return redirect(url_for("crm.quotes_index"))
@@ -2993,8 +3362,11 @@ def quotes_edit(quote_id):
         "quotes/form.html",
         mode="edit",
         quote=data,
+        quote_lines=quote_lines,
+        quote_summary=quote_summary,
         customers=_customer_choices(),
         opportunities=_opportunity_choices(),
+        inventory_items=_inventory_item_choices(),
         status_options=QUOTE_STATUSES,
     )
 
@@ -3006,6 +3378,8 @@ def quotes_contract(quote_id):
     if quote is None:
         abort(404)
     quote_customer = _fetch_customer(quote["customer_id"])
+    quote_lines = _fetch_quote_line_items(quote_id)
+    quote_summary = _quote_display_package(dict(quote), quote_lines)
 
     contract = {
         "signed_date": quote["signed_date"],
@@ -3027,14 +3401,14 @@ def quotes_contract(quote_id):
             errors.append("Received deposit must be zero or a positive number.")
         if (
             contract["deposit_required"] is not None
-            and quote["amount"] is not None
-            and contract["deposit_required"] > quote["amount"]
+            and (quote["grand_total"] or quote["amount"]) is not None
+            and contract["deposit_required"] > (quote["grand_total"] or quote["amount"])
         ):
             errors.append("Required deposit cannot exceed contract amount.")
         if (
             contract["deposit_received"] is not None
-            and quote["amount"] is not None
-            and contract["deposit_received"] > quote["amount"]
+            and (quote["grand_total"] or quote["amount"]) is not None
+            and contract["deposit_received"] > (quote["grand_total"] or quote["amount"])
         ):
             errors.append("Received deposit cannot exceed contract amount.")
         if not errors:
@@ -3073,7 +3447,14 @@ def quotes_contract(quote_id):
         for error in errors:
             flash(error, "error")
 
-    return render_template("quotes/contract.html", quote=quote, quote_customer=quote_customer, contract=contract)
+    return render_template(
+        "quotes/contract.html",
+        quote=quote,
+        quote_customer=quote_customer,
+        quote_lines=quote_lines,
+        quote_summary=quote_summary,
+        contract=contract,
+    )
 
 
 @bp.post("/quotes/<int:quote_id>/delete")

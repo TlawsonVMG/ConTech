@@ -143,17 +143,18 @@ def seed_demo_data(db):
     )
 
     quotes = [
-        (1, 1, 1, 1, "Quote #8891", "Roof replacement contract", "Owens Corning Duration / upgraded venting / fixed-margin package", 22400, 14560, 35.0, 5600, 5600, "Approved", "2026-04-02", "2026-04-01", "2026-04-08"),
-        (2, 1, 3, 2, "Quote #8904", "Storm restoration contract", "Building C restoration scope with board-ready billing schedule", 118000, 80240, 32.0, 23600, 23600, "Approved", "2026-04-02", "2026-04-01", "2026-04-10"),
-        (3, 1, 7, 4, "Quote #8917", "Repair and trim contract", "Roof leak repair with soffit and fascia cleanup", 14300, 9438, 34.0, 3575, 0, "Draft", None, "2026-04-02", "2026-04-12"),
+        (1, 1, 1, 1, "Quote #8891", "Roof replacement contract", "Owens Corning Duration / upgraded venting / fixed-margin package", 22400, 14560, 35.0, 8.25, 1501.50, 23901.50, 0, 7840, 3, 5600, 5600, "Approved", "2026-04-02", "2026-04-01", "2026-04-08"),
+        (2, 1, 3, 2, "Quote #8904", "Storm restoration contract", "Building C restoration scope with board-ready billing schedule", 118000, 80240, 32.0, 8.25, 5197.50, 123197.50, 0, 37760, 4, 23600, 23600, "Approved", "2026-04-02", "2026-04-01", "2026-04-10"),
+        (3, 1, 7, 4, "Quote #8917", "Repair and trim contract", "Roof leak repair with soffit and fascia cleanup", 14300, 9438, 34.0, 8.25, 750.75, 15050.75, 0, 4862, 3, 3575, 0, "Draft", None, "2026-04-02", "2026-04-12"),
     ]
     db.executemany(
         """
         INSERT INTO quotes (
             id, branch_id, opportunity_id, customer_id, quote_number, option_name, description,
-            amount, estimated_cost, target_margin_pct, deposit_required, deposit_received,
+            amount, estimated_cost, target_margin_pct, tax_rate_pct, tax_total, grand_total,
+            discount_total, profit_amount, line_item_count, deposit_required, deposit_received,
             status, signed_date, issue_date, expiration_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         quotes,
     )
@@ -398,6 +399,29 @@ def seed_demo_data(db):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         inventory_items,
+    )
+
+    quote_line_items = [
+        (1, 1, 1, None, 1, "", "Tear-off + disposal", "Remove existing roofing, haul-off debris, and protect landscaping before install.", "job", 1, 2800, 4200, 0, 0, 8.25, 2800, 4200, 0, 4200, 1400, 33.3),
+        (2, 1, 1, 1, 2, "SH-CHAR-30", "Charcoal laminate shingles", "Roof field shingle package with starter, ridge, and accessory bundle.", "lot", 1, 7560, 11900, 0, 1, 8.25, 7560, 11900, 981.75, 12881.75, 4340, 36.5),
+        (3, 1, 1, 2, 3, "FA-WHT-6", "Fascia + ventilation package", "Fascia metal, venting accessories, and finish trim allowance.", "lot", 1, 4200, 6300, 0, 1, 8.25, 4200, 6300, 519.75, 6819.75, 2100, 33.3),
+        (4, 1, 2, None, 1, "", "Labor + tear-off crew", "Commercial tear-off, dry-in labor, and haul-off sequencing for Building C.", "job", 1, 17760, 24600, 0, 0, 8.25, 17760, 24600, 0, 24600, 6840, 27.8),
+        (5, 1, 2, 1, 2, "SH-CHAR-30", "Roof field material package", "Primary shingle field package with underlayment and accessory allowance.", "lot", 1, 29680, 44800, 0, 1, 8.25, 29680, 44800, 3696, 48496, 15120, 33.8),
+        (6, 1, 2, 4, 3, "SD-FCL-8", "Siding + trim replacement", "Fiber cement siding sections, trim stock, and building-envelope accessories.", "lot", 1, 12040, 18200, 0, 1, 8.25, 12040, 18200, 1501.50, 19701.50, 6160, 33.8),
+        (7, 1, 2, None, 4, "", "Staging + permits", "Lift staging, safety setup, board paperwork, and permit coordination.", "job", 1, 20760, 30400, 0, 0, 8.25, 20760, 30400, 0, 30400, 9640, 31.7),
+        (8, 1, 3, None, 1, "", "Leak repair labor", "Targeted roof leak repair, decking prep, and detail waterproofing labor.", "job", 1, 3510, 5200, 0, 0, 8.25, 3510, 5200, 0, 5200, 1690, 32.5),
+        (9, 1, 3, 2, 2, "FA-WHT-6", "Soffit + fascia materials", "Trim metal, soffit sections, and finish accessories for repair scope.", "lot", 1, 3318, 5100, 0, 1, 8.25, 3318, 5100, 420.75, 5520.75, 1782, 34.9),
+        (10, 1, 3, None, 3, "", "Sealant + cleanup", "Sealant, touch-up, and final cleanup allowance.", "job", 1, 2610, 4000, 0, 1, 8.25, 2610, 4000, 330, 4330, 1390, 34.8),
+    ]
+    db.executemany(
+        """
+        INSERT INTO quote_line_items (
+            id, branch_id, quote_id, inventory_item_id, sort_order, sku, item_name, description,
+            unit_label, quantity, unit_cost, unit_price, discount_pct, taxable, tax_rate_pct,
+            line_cost, line_subtotal, line_tax, line_total, profit_amount, margin_pct
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        quote_line_items,
     )
 
     job_materials = [

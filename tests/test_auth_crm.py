@@ -122,14 +122,14 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ready")
         self.assertEqual(payload["database"]["engine"], "sqlite")
         self.assertTrue(payload["database"]["schema_current"])
-        self.assertEqual(payload["database"]["schema_version"], "2026.04.10.customer-invites")
+        self.assertEqual(payload["database"]["schema_version"], "2026.04.10.quote-line-items")
         self.assertEqual(payload["checks"]["database_connection"], "ok")
         self.assertTrue(payload["checks"]["uploads_writable"])
 
         with self.app.app_context():
             migration = get_db().execute(
                 "SELECT version FROM schema_migrations WHERE version = ?",
-                ("2026.04.10.customer-invites",),
+                ("2026.04.10.quote-line-items",),
             ).fetchone()
         self.assertIsNotNone(migration)
 
@@ -481,6 +481,89 @@ class ConTechAuthAndCrmTests(unittest.TestCase):
         quotes_response = self.client.get("/quotes")
         self.assertEqual(quotes_response.status_code, 200)
         self.assertIn(b"Header: Lopez Residence LLC", quotes_response.data)
+
+    def test_itemized_quote_builder_saves_lines_and_rollups(self):
+        self.login("admin", "ConTech!2026")
+        builder_page = self.client.get("/quotes/new")
+        self.assertEqual(builder_page.status_code, 200)
+        self.assertIn(b"Line Item Builder", builder_page.data)
+
+        response = self.client.post(
+            "/quotes/new",
+            data={
+                "opportunity_id": "1",
+                "customer_id": "1",
+                "quote_number": "Q-LINE-1001",
+                "option_name": "Itemized roof package",
+                "description": "Paradigm-style itemized roof package with tax breakout",
+                "tax_rate_pct": "8.25",
+                "deposit_required": "2000",
+                "deposit_received": "0",
+                "status": "Draft",
+                "signed_date": "",
+                "issue_date": "2026-04-10",
+                "expiration_date": "2026-04-20",
+                "line_inventory_item_id": ["", "1"],
+                "line_sku": ["LAB-ROOF", ""],
+                "line_item_name": ["Roof tear-off labor", ""],
+                "line_description": ["Remove existing shingles and prep deck", "Roof field material package"],
+                "line_quantity": ["1", "10"],
+                "line_unit_label": ["job", "square"],
+                "line_unit_cost": ["2500", "94"],
+                "line_unit_price": ["3900", "134"],
+                "line_discount_pct": ["0", "5"],
+                "line_taxable": ["0", "1"],
+            },
+            follow_redirects=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Q-LINE-1001", response.data)
+
+        with self.app.app_context():
+            db = get_db()
+            quote = db.execute(
+                """
+                SELECT amount, estimated_cost, tax_total, grand_total, discount_total,
+                       profit_amount, line_item_count, target_margin_pct
+                FROM quotes
+                WHERE quote_number = ?
+                """,
+                ("Q-LINE-1001",),
+            ).fetchone()
+            quote_id = db.execute(
+                "SELECT id FROM quotes WHERE quote_number = ?",
+                ("Q-LINE-1001",),
+            ).fetchone()["id"]
+            lines = db.execute(
+                """
+                SELECT item_name, taxable, line_subtotal, line_tax, line_total, line_cost, profit_amount
+                FROM quote_line_items
+                WHERE quote_id = ?
+                ORDER BY sort_order
+                """,
+                (quote_id,),
+            ).fetchall()
+
+        self.assertAlmostEqual(quote["amount"], 5173.00, places=2)
+        self.assertAlmostEqual(quote["estimated_cost"], 3440.00, places=2)
+        self.assertAlmostEqual(quote["tax_total"], 105.02, places=2)
+        self.assertAlmostEqual(quote["grand_total"], 5278.02, places=2)
+        self.assertAlmostEqual(quote["discount_total"], 67.00, places=2)
+        self.assertAlmostEqual(quote["profit_amount"], 1733.00, places=2)
+        self.assertEqual(quote["line_item_count"], 2)
+        self.assertAlmostEqual(quote["target_margin_pct"], 33.5, places=1)
+        self.assertEqual(lines[0]["item_name"], "Roof tear-off labor")
+        self.assertEqual(lines[0]["taxable"], 0)
+        self.assertAlmostEqual(lines[1]["line_tax"], 105.02, places=2)
+
+        contract_page = self.client.get(f"/quotes/{quote_id}/contract")
+        edit_page = self.client.get(f"/quotes/{quote_id}/edit")
+        self.assertEqual(edit_page.status_code, 200)
+        self.assertIn(b"Line Item Builder", edit_page.data)
+        self.assertEqual(contract_page.status_code, 200)
+        self.assertIn(b"Roof tear-off labor", contract_page.data)
+        self.assertIn(b"Grand total", contract_page.data)
 
     def test_customer_lead_opportunity_quote_job_invoice_workflow(self):
         self.login("admin", "ConTech!2026")
