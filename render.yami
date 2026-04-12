@@ -1,0 +1,117 @@
+services:
+  - type: web
+    name: contech
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: python -m flask --app wsgi ensure-db
+    startCommand: python serve.py
+    healthCheckPath: /api/ready
+    buildFilter:
+      ignoredPaths:
+        - ridgeflow/**
+    disk:
+      name: contech-uploads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: CONTECH_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: contech-db
+          property: connectionString
+      - key: AUTO_INIT_DB
+        value: "false"
+      - key: SEED_DEMO_DATA
+        value: "false"
+      - key: CSRF_ENABLED
+        value: "true"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: WAITRESS_THREADS
+        value: "8"
+      - key: UPLOAD_FOLDER
+        value: /var/data/uploads
+      - key: JOB_DOCUMENT_UPLOAD_FOLDER
+        value: /var/data/uploads/job-documents
+      - key: CUSTOMER_LOGO_UPLOAD_FOLDER
+        value: /var/data/uploads/customer-logos
+      - key: BOOTSTRAP_ADMIN_USERNAME
+        value: admin
+      - key: BOOTSTRAP_ADMIN_FULL_NAME
+        value: Thomas Lawson
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_BRANCH_NAME
+        value: ConTech Pilot Branch
+      - key: BOOTSTRAP_BRANCH_CODE
+        value: MAIN
+      - key: BOOTSTRAP_BRANCH_ADDRESS
+        value: Launch address pending
+      - key: BOOTSTRAP_BRANCH_CITY
+        value: TBD
+      - key: BOOTSTRAP_BRANCH_STATE
+        value: NA
+      - key: BOOTSTRAP_BRANCH_POSTAL_CODE
+        value: "00000"
+
+  - type: web
+    name: ridgeflow
+    runtime: python
+    plan: starter
+    region: oregon
+    rootDir: ridgeflow
+    buildCommand: pip install -r requirements.txt
+    startCommand: python serve.py
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - ridgeflow/**
+        - render.yaml
+        - render.yami
+    disk:
+      name: ridgeflow-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: RIDGEFLOW_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUTO_INIT_DB
+        value: "true"
+      - key: SEED_DEMO_DATA
+        value: "false"
+      - key: DATABASE
+        value: /data/ridgeflow.sqlite3
+      - key: UPLOAD_FOLDER
+        value: /data/uploads
+      - key: BLUEPRINT_UPLOAD_FOLDER
+        value: /data/uploads/blueprints
+      - key: BLUEPRINT_PAGE_IMAGE_FOLDER
+        value: /data/uploads/blueprint-pages
+      - key: RASTERIZER_BACKEND
+        value: auto
+      - key: OCR_BACKEND
+        value: auto
+      - key: VISION_BACKEND
+        value: auto
+      - key: OPENAI_API_KEY
+        sync: false
+
+databases:
+  - name: contech-db
+    databaseName: contech
+    user: contech_app
+    plan: basic-256mb
+    region: oregon
+    postgresMajorVersion: "18"
+    diskSizeGB: 1
+    storageAutoscalingEnabled: true
+    ipAllowList: []
