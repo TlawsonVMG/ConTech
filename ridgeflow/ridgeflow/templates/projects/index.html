@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section-header">
+    <div>
+      <p class="eyebrow">Project Workspace</p>
+      <h2>Roofing jobs and takeoff history</h2>
+    </div>
+    <div class="section-actions">
+      <input class="search-input" type="search" placeholder="Search project, client, or system" data-project-filter>
+      <a class="button" href="{{ url_for('web.project_create') }}">New Project</a>
+    </div>
+  </section>
+
+  <section class="project-card-grid">
+    {% for project in projects %}
+      <article
+        class="project-card"
+        data-project-card
+        data-search="{{ (project['name'] ~ ' ' ~ project['client_name'] ~ ' ' ~ project['roof_system'] ~ ' ' ~ project['status'])|lower }}"
+      >
+        <div class="project-card-head">
+          <div>
+            <p class="eyebrow">{{ project["project_type"] }}</p>
+            <h3>{{ project["name"] }}</h3>
+          </div>
+          <span class="status-pill">{{ project["status"] }}</span>
+        </div>
+        <p class="project-subtitle">{{ project["client_name"] }}</p>
+        <p class="muted">{{ project["address"] }}</p>
+
+        <div class="info-grid">
+          <div>
+            <span class="info-label">System</span>
+            <strong>{{ project["roof_system"] }}</strong>
+          </div>
+          <div>
+            <span class="info-label">Estimator</span>
+            <strong>{{ project["estimator_name"] }}</strong>
+          </div>
+          <div>
+            <span class="info-label">Blueprints</span>
+            <strong>{{ project["blueprint_count"] }}</strong>
+          </div>
+          <div>
+            <span class="info-label">Takeoffs</span>
+            <strong>{{ project["takeoff_count"] }}</strong>
+          </div>
+          <div>
+            <span class="info-label">Open Tasks</span>
+            <strong>{{ project["open_task_count"] }}</strong>
+          </div>
+          <div>
+            <span class="info-label">Due Date</span>
+            <strong>{{ project["due_date"] or "TBD" }}</strong>
+          </div>
+        </div>
+
+        <a class="button button-secondary button-block" href="{{ url_for('web.project_detail', project_id=project['id']) }}">Open Workspace</a>
+      </article>
+    {% else %}
+      <p class="empty-state">No RidgeFlow projects exist yet.</p>
+    {% endfor %}
+  </section>
+{% endblock %}

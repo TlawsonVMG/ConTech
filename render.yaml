@@ -8,6 +8,9 @@ services:
     preDeployCommand: python -m flask --app wsgi ensure-db
     startCommand: python serve.py
     healthCheckPath: /api/ready
+    buildFilter:
+      ignoredPaths:
+        - ridgeflow/**
     disk:
       name: contech-uploads
       mountPath: /var/data
@@ -57,6 +60,49 @@ services:
         value: NA
       - key: BOOTSTRAP_BRANCH_POSTAL_CODE
         value: "00000"
+
+  - type: web
+    name: ridgeflow
+    runtime: python
+    plan: starter
+    region: oregon
+    rootDir: ridgeflow
+    buildCommand: pip install -r requirements.txt
+    startCommand: python serve.py
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - ridgeflow/**
+        - render.yaml
+    disk:
+      name: ridgeflow-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: RIDGEFLOW_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUTO_INIT_DB
+        value: "true"
+      - key: SEED_DEMO_DATA
+        value: "false"
+      - key: DATABASE
+        value: /data/ridgeflow.sqlite3
+      - key: UPLOAD_FOLDER
+        value: /data/uploads
+      - key: BLUEPRINT_UPLOAD_FOLDER
+        value: /data/uploads/blueprints
+      - key: BLUEPRINT_PAGE_IMAGE_FOLDER
+        value: /data/uploads/blueprint-pages
+      - key: RASTERIZER_BACKEND
+        value: auto
+      - key: OCR_BACKEND
+        value: auto
+      - key: VISION_BACKEND
+        value: auto
+      - key: OPENAI_API_KEY
+        sync: false
 
 databases:
   - name: contech-db

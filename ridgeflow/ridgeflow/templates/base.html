@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "RidgeFlow" }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <span class="eyebrow">AI-Native Roofing Takeoffs</span>
+          <a class="brand" href="{{ url_for('web.dashboard') }}">RidgeFlow</a>
+          <p class="brand-copy">Blueprint PDFs, material takeoffs, project workflow, and team coordination in one clean workspace.</p>
+        </div>
+
+        <nav class="nav">
+          <a class="nav-link {% if request.endpoint == 'web.dashboard' %}is-active{% endif %}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
+          <a class="nav-link {% if request.endpoint in ('web.project_index', 'web.project_detail', 'web.project_create') %}is-active{% endif %}" href="{{ url_for('web.project_index') }}">Projects</a>
+          <a class="nav-link" href="{{ url_for('web.project_create') }}">New Project</a>
+        </nav>
+
+        <div class="sidebar-card">
+          <span class="eyebrow">Supported V1 Systems</span>
+          <div class="chip-wrap">
+            <span class="chip">Shingles</span>
+            <span class="chip">TPO</span>
+            <span class="chip">EPDM</span>
+            <span class="chip">Metal</span>
+            <span class="chip">PVC</span>
+            <span class="chip">Mod Bit</span>
+          </div>
+        </div>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">RidgeFlow V1</p>
+            <h1>{{ title or "RidgeFlow" }}</h1>
+          </div>
+          <div class="topbar-actions">
+            <a class="button button-secondary" href="{{ url_for('web.project_index') }}">View Pipeline</a>
+            <a class="button" href="{{ url_for('web.project_create') }}">Create Project</a>
+          </div>
+        </header>
+
+        {% with flashes = get_flashed_messages(with_categories=true) %}
+          {% if flashes %}
+            <section class="flash-stack">
+              {% for category, message in flashes %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </section>
+          {% endif %}
+        {% endwith %}
+
+        <main class="content">
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
